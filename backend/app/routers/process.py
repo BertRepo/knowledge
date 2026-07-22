@@ -8,7 +8,6 @@
 """
 from __future__ import annotations
 
-import json
 from typing import List
 
 import httpx
@@ -24,17 +23,9 @@ from ..models import (
     ScrapeRequest,
     ScrapedPage,
 )
+from ..sse import sse as _sse
 
 router = APIRouter()
-
-
-def _sse(event: str, data: dict) -> str:
-    """格式化一条 SSE（Server-Sent Events）消息。
-
-    SSE 格式：每条事件由若干行组成，空行结尾标志事件结束。
-    浏览器 EventSource 和手写的 fetch+ReadableStream 都能解析。
-    """
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 @router.post("/api/scrape", response_model=ScrapedPage)

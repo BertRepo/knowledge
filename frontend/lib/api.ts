@@ -2,7 +2,9 @@
 // 组件和 hooks 只调用这里导出的函数，绝不直接 fetch()。
 // 这样后端地址/错误处理/请求格式只在这一个文件里维护。
 import type {
+  ChatMessage,
   ClearResponse,
+  GraphData,
   HealthStatus,
   LinkResponse,
   NoteFull,
@@ -164,6 +166,9 @@ export const getNote = (filename: string) =>
 export const linkNotes = (filename: string, targets: string[]) =>
   postJson<LinkResponse>("/api/link", { filename, targets });
 
+// ---- 知识图谱 ----
+export const getGraph = () => apiFetch<GraphData>("/api/graph");
+
 // ---- 会话（一次性临时历史） ----
 export const listSessions = () => apiFetch<SessionSummary[]>("/api/sessions");
 
@@ -172,6 +177,78 @@ export const getSession = (file: string) =>
 
 export const clearSessions = () =>
   apiFetch<ClearResponse>("/api/sessions", { method: "DELETE" });
+
+// ---- 对话区（流式追问，基于当前笔记） ----
+// 回调：token 增量、回答结束、出错分别回调。复用与 processUrlStream 一致的手写 SSE 解析。
+export interface ChatStreamCallbacks {
+  onToken: (delta: string) => void;
+  onDone: () => void;
+  onError: (message: string) => void;
+}
+
+/**
+ * 流式对话：POST /api/chat/stream，消费 SSE。
+ * 后端按当前笔记 + 关联笔记构建上下文，前端只传对话历史。
+ */
+export async function chatStream(
+  noteFilename: string,
+  messages: ChatMessage[],
+  callbacks: ChatStreamCallbacks,
+): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note_filename: noteFilename, messages }),
+    });
+  } catch {
+    callbacks.onError("无法连接后端，请确认 Python 服务已启动");
+    return;
+  }
+
+  if (!res.ok || !res.body) {
+    let detail = `${res.status}`;
+    try {
+      detail = (await res.json()).detail || detail;
+    } catch {
+      /* 响应体非 JSON，用状态码兜底 */
+    }
+    callbacks.onError(detail);
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+
+    for (const evt of events) {
+      let event = "message";
+      let data = "";
+      for (const line of evt.split("\n")) {
+        if (line.startsWith("event: ")) event = line.slice(7);
+        else if (line.startsWith("data: ")) data = line.slice(6);
+      }
+      if (!data) continue;
+      try {
+        const parsed = JSON.parse(data);
+        if (event === "token") callbacks.onToken(parsed.delta);
+        else if (event === "done") callbacks.onDone();
+        else if (event === "error") callbacks.onError(parsed.detail);
+      } catch {
+        /* 单条事件 JSON 解析失败不影响后续 */
+      }
+    }
+  }
+}
 
 // ---- 设置（API 配置页） ----
 export const getSettings = () => apiFetch<SettingsView>("/api/settings");

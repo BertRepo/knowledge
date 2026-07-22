@@ -143,6 +143,60 @@ def complete_stream(system: str, user: str, *, max_tokens: int | None = None):
 
 
 # ---------------------------------------------------------------------------
+# 多轮对话流式：区别于 complete_stream（单轮），这里接受完整对话历史
+# ---------------------------------------------------------------------------
+
+
+def chat_stream(system: str, messages: list[dict], *, max_tokens: int | None = None):
+    """多轮流式对话，yield 文本增量（生成器）。
+
+    与 complete_stream 的区别：messages 是多轮历史 [{role, content}, ...]，
+    而不是单个 user 文本。复用同一套 SSE 解析逻辑（只取 text_delta）。
+    """
+    s = get_settings()
+    if not s.ai_api_key:
+        raise AIError(
+            "AI_API_KEY 未配置：请在 backend/.env 中填入你的内部 AI token/私钥"
+        )
+
+    payload = {
+        "model": s.ai_model,
+        "max_tokens": max_tokens or s.ai_max_tokens,
+        "system": system,
+        "messages": messages,
+        "stream": True,
+    }
+    headers = {
+        "x-api-key": s.ai_api_key,
+        "Authorization": f"Bearer {s.ai_api_key}",
+        "anthropic-version": s.ai_anthropic_version,
+        "content-type": "application/json",
+    }
+
+    with httpx.Client(timeout=s.ai_timeout) as client:
+        with client.stream("POST", s.ai_endpoint, json=payload, headers=headers) as resp:
+            if resp.status_code >= 400:
+                body = resp.read().decode("utf-8", errors="replace")
+                raise AIError(f"AI 接口返回 {resp.status_code}: {body[:500]}")
+            for line in resp.iter_lines():
+                if not line or not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str.strip() == "[DONE]":
+                    break
+                try:
+                    evt = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+                if evt.get("type") == "content_block_delta":
+                    delta = evt.get("delta", {})
+                    if delta.get("type") == "text_delta":
+                        text = delta.get("text", "")
+                        if text:
+                            yield text
+
+
+# ---------------------------------------------------------------------------
 # JSON 提取：模型不一定老老实实只输出 JSON，需要兜底解析
 # ---------------------------------------------------------------------------
 

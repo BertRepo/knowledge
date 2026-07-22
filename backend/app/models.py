@@ -8,7 +8,7 @@
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -147,3 +147,37 @@ class SettingsUpdate(BaseModel):
     ai_timeout: Optional[float] = None
     notes_dir: Optional[str] = None
     cors_origins: Optional[str] = None
+
+
+# ---------- 知识图谱 ----------
+class GraphNode(BaseModel):
+    id: str  # 笔记文件名主干，作为图节点 id
+    title: str
+    domain: str = "general"
+    tags: List[str] = Field(default_factory=list)
+
+
+class GraphEdge(BaseModel):
+    source: str  # 笔记文件名主干
+    target: str  # 被 [[wikilink]] 引用的笔记主干
+
+
+class GraphData(BaseModel):
+    """图谱视图数据：节点 = 笔记，边 = wikilink 引用（仅连真实存在的笔记）。"""
+    nodes: List[GraphNode]
+    edges: List[GraphEdge]
+
+
+# ---------- 对话区 ----------
+class ChatMessage(BaseModel):
+    role: str  # user / assistant
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """对话区追问请求：指定当前笔记 + 对话历史。"""
+    note_filename: str
+    messages: List[ChatMessage] = Field(
+        default_factory=list,
+        description="对话历史，最后一轮通常是 user 的追问。",
+    )

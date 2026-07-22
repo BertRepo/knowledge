@@ -126,3 +126,27 @@ export const DOMAIN_LABELS: Record<string, string> = {
   opinion: "观点/评论",
   general: "通用",
 };
+
+// ---------- 知识图谱 ----------
+export interface GraphNode {
+  id: string;
+  title: string;
+  domain: string;
+  tags: string[];
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+// ---------- 对话区 ----------
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
