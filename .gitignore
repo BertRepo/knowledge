@@ -1,0 +1,47 @@
+# ===== Secrets / 环境变量（绝不提交）=====
+backend/.env
+frontend/.env.local
+frontend/.env*.local
+**/.env
+# .env.example 是模板（无密钥），保留
+!**/.env.example
+
+# ===== Python =====
+backend/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== Node / Next.js =====
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
+next-env.d.ts
+
+# ===== 运行日志 / 临时 =====
+.logs/
+*.log
+
+# ===== Vault 笔记内容（用户数据，不进仓库）=====
+vault/*.md
+!vault/.gitkeep
+
+# ===== 会话快照（运行时临时产物）=====
+# 存在系统 temp 目录，本仓库内不会有，保险起见也忽略
+knowledge-sessions/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp

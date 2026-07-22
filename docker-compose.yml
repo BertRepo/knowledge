@@ -1,0 +1,40 @@
+# 知识聚合器 - 本地 Docker 一键启动
+# 用法：
+#   1. 确保已填好 backend/.env（AI_BASE_URL / AI_API_KEY / AI_MODEL）
+#   2. docker compose up -d --build
+#   3. 浏览器打开 http://localhost:3000
+#   4. docker compose down        停止
+#   5. docker compose logs -f      查看日志
+#
+# 笔记写入宿主机 ./vault（与本地 dev 共用同一目录），可改指向 iCloud。
+# 会话快照在容器内临时目录，删除容器即清空，不影响 vault。
+
+services:
+  backend:
+    build: ./backend
+    container_name: knowledge-backend
+    # backend/.env 提供 AI_* 凭证；下方 environment 覆盖容器内路径/端口
+    env_file:
+      - ./backend/.env
+    environment:
+      OBSIDIAN_VAULT_DIR: /data/vault
+      CORS_ORIGINS: http://localhost:3000
+      BACKEND_HOST: 0.0.0.0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./vault:/data/vault
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # 浏览器在宿主机，直接访问映射到宿主机的 8000 端口
+        NEXT_PUBLIC_API_BASE: http://localhost:8000
+    container_name: knowledge-frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - backend

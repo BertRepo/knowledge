@@ -1,0 +1,20 @@
+# --- Web / API ---
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+httpx==0.27.2
+pydantic==2.9.2
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+# Lets pydantic v2 evaluate `list[str]` / `X | None` annotations on Python 3.8.
+# No-op on 3.9+. Remove once you run Python 3.9+.
+eval_type_backport==0.2.0
+
+# --- Scraping ---
+# bs4 uses the stdlib html.parser, so lxml is NOT required on Python 3.8.
+beautifulsoup4==4.12.3
+
+# Optional: better main-content extraction. Tries to import at runtime;
+# if absent, scraper falls back to BeautifulSoup. Recent versions need
+# Python >=3.9, so on 3.8 leave this out and the fallback handles it.
+# trafilatura==1.6.1
+# lxml==4.9.4
