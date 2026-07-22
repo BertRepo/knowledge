@@ -3,18 +3,31 @@
 本项目变更记录遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+规划中（见 PRD.md 路线图）：两页式布局（工作台 + 笔记库页）、对话区、知识图谱可视化、向量检索关联、自定义 Skill。
+
+## [1.1.0] - 2026-07-21
+
+### Changed
+
+- **去 Obsidian 依赖**：产品定位改为「独立 Markdown 知识工具」。笔记就是普通 `.md` 文件，`[[wikilink]]` 是 Markdown 通用约定（Obsidian/Logseq/VSCode 兼容），不再绑定某一编辑器。
+  - 配置项 `OBSIDIAN_VAULT_DIR` -> `NOTES_DIR`，代码 `obsidian_vault_dir` -> `notes_dir`、`vault_path` -> `notes_path`。
+  - 前端标题 / 页脚 / SettingsForm / 类型定义同步更新。
+- **PRD 重构**：参考 `11.md` 新增竞品对比、两页式目标布局、核心交互流程、状态权限模型、安全数据治理、活跃留存指标。
+
 ## [1.0.0] - 2026-07-21
 
-首个正式版本：网页 -> 内部 AI 摘要 -> Obsidian 笔记 -> 关联建议 -> `[[wikilink]]` 知识网络。
+首个正式版本：网页 -> 内部 AI 摘要 -> Markdown 笔记 -> 关联建议 -> `[[wikilink]]` 知识网络。
 
 ### Added
 
-- **核心流水线**：粘贴网页链接，后端五步处理（抓取正文 → AI 分析 → 写 Obsidian Markdown → AI 关联建议 → 会话快照）。
+- **核心流水线**：粘贴网页链接，后端五步处理（抓取正文 → AI 分析 → 写 Markdown 笔记 → AI 关联建议 → 会话快照）。
 - **网页抓取**（`scraper.py`）：trafilatura 优先、BeautifulSoup 兜底，自动处理编码与超长内容截断。
 - **AI 分析**（`ai.py`）：直连 Anthropic 兼容 `/v1/messages`，同时发送 `x-api-key` 与 `Authorization: Bearer` 双认证头；支持 reasoning 模型（自动跳过 `thinking` 块，正文为空时提示增大 `max_tokens`）。
 - **领域 Skills**：自动识别内容领域（技术/产品/金融/学术/教程/资讯/通用），按领域套用不同摘要结构与图解策略。
-- **图解生成**：摘要自动产出 Mermaid 流程图/脑图，Obsidian 原生渲染，前端亦渲染。
-- **Obsidian Vault 读写**（`vault.py`）：YAML frontmatter、唯一文件名、`[[wikilink]]` 追加与去重。
+- **图解生成**：摘要自动产出 Mermaid 流程图/脑图，前端渲染，多数 Markdown 编辑器亦原生支持。
+- **Markdown 笔记读写**（`vault.py`）：YAML frontmatter、唯一文件名、`[[wikilink]]` 追加与去重。
 - **会话快照**（`session.py`）：每次分析结果写入系统临时目录，可一键清空，不影响 vault。
 - **前端交互页面**（Next.js 16 + React 19 + Tailwind v4）：URL 输入、分析卡片、关联建议勾选、手动添加链接、笔记库列表、笔记预览、会话历史、状态条。
 - **API 配置页**（`/settings`）：网页内查看/修改 AI 凭证、模型、vault 路径，无需手动编辑 `.env`。
