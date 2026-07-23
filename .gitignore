@@ -64,3 +64,6 @@ backend/*.spec
 
 # ===== Next.js 静态导出（Tauri 用）=====
 frontend/out/
+
+# ===== 本地 LLM 模型（1.2GB，不进 git，随包分发或用户自备）=====
+backend/local-model/

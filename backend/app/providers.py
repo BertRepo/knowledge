@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import subprocess
 import time
+from pathlib import Path
 from typing import Iterator
 
 import httpx
@@ -37,9 +38,17 @@ def _ensure_llama_server() -> str:
     if not s.local_llm_server_path or not s.local_llm_model_path:
         raise ProviderError("本地 LLM 未配置：请在配置页填 llama-server 路径和 GGUF 模型路径")
 
+    # 用绝对路径启动（相对路径以 backend/ 为基准，见 config._resolve_local）
+    server = s.local_llm_server_abs
+    model = s.local_llm_model_abs
+    if not Path(server).exists():
+        raise ProviderError(f"llama-server 不存在：{server}")
+    if not Path(model).exists():
+        raise ProviderError(f"GGUF 模型不存在：{model}")
+
     cmd = [
-        s.local_llm_server_path,
-        "-m", s.local_llm_model_path,
+        server,
+        "-m", str(model),
         "--host", "127.0.0.1",
         "--port", str(s.local_llm_port),
         "--n-gpu-layers", str(s.local_llm_gpu_layers),

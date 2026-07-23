@@ -82,6 +82,29 @@ class Settings(BaseSettings):
         return f"http://127.0.0.1:{self.local_llm_port}/v1/chat/completions"
 
     @property
+    def local_llm_server_abs(self) -> str:
+        """llama-server 可执行文件的绝对路径（支持相对路径，相对 backend/）。"""
+        return str(self._resolve_local(self.local_llm_server_path))
+
+    @property
+    def local_llm_model_abs(self) -> str:
+        """GGUF 模型文件的绝对路径（支持相对路径，相对 backend/）。"""
+        return str(self._resolve_local(self.local_llm_model_path))
+
+    def _resolve_local(self, path: str) -> Path:
+        """把本地模型相关路径解析成绝对路径。
+
+        相对路径以 backend/ 目录为基准（方便打包时随项目走）。
+        """
+        if not path:
+            return Path()
+        p = Path(path).expanduser()
+        if not p.is_absolute():
+            # config.py 在 app/ 下，上一级是 backend/
+            p = Path(__file__).resolve().parent.parent / p
+        return p
+
+    @property
     def llm_configured(self) -> bool:
         """当前 provider 是否已配好可用。"""
         if self.llm_provider == "online":
