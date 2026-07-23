@@ -15,7 +15,7 @@ import httpx
 from .config import get_settings
 from .models import AnalysisResult, RelatedSuggestion
 from . import providers
-from .skills import VALID_DOMAINS, skills_prompt
+from .skills import valid_domains, skills_prompt
 
 # ---------------------------------------------------------------------------
 # 底层补全：只管「发请求、取文本」，不关心业务语义
@@ -153,7 +153,7 @@ def analyze(text: str, url: str, title_hint: str) -> AnalysisResult:
 
     # 领域白名单校验：只接受 skills.py 里预定义的 domain，非法值兜底成 general
     domain = _str("domain", "general") or "general"
-    if domain not in VALID_DOMAINS:
+    if domain not in valid_domains():
         domain = "general"
 
     # 图解：模型可能不听话带了 ``` 围栏，剥掉；前后空白也清掉
@@ -278,7 +278,7 @@ def analyze_stream(text: str, url: str, title_hint: str):
         filename = "note"
 
     domain = _str("domain", "general") or "general"
-    if domain not in VALID_DOMAINS:
+    if domain not in valid_domains():
         domain = "general"
 
     diagram = _strip_mermaid_fence(_str("diagram"))
