@@ -41,6 +41,11 @@ class RelateRequest(BaseModel):
     max_suggestions: int = 6
 
 
+class NoteUpdateRequest(BaseModel):
+    """在线编辑笔记正文的请求体：只替换正文，frontmatter 由后端保留。"""
+    body: str
+
+
 # ---------- 抓取结果 ----------
 class ScrapedPage(BaseModel):
     url: str

@@ -164,6 +164,13 @@ export const listNotes = () => apiFetch<NoteMeta[]>("/api/notes");
 export const getNote = (filename: string) =>
   apiFetch<NoteFull>(`/api/notes/${encodeURIComponent(filename)}`);
 
+// 在线编辑笔记正文（保留 frontmatter）
+export const updateNote = (filename: string, body: string) =>
+  apiFetch<NoteFull>(`/api/notes/${encodeURIComponent(filename)}`, {
+    method: "PUT",
+    body: JSON.stringify({ body }),
+  });
+
 export const linkNotes = (filename: string, targets: string[]) =>
   postJson<LinkResponse>("/api/link", { filename, targets });
 

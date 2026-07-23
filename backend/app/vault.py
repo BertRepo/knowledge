@@ -223,6 +223,34 @@ def note_candidates() -> list[dict]:
 # ---------- 添加 wikilink 关联 ----------
 
 
+def update_note_body(stem: str, new_body: str) -> str:
+    """替换笔记正文，保留原 frontmatter，返回新正文。
+
+    用于「在线编辑」：用户改的是正文，frontmatter（title/source/tags 等）
+    是结构化元数据，不应被随手覆盖。保留原 frontmatter + 写入新正文。
+    """
+    vault = get_settings().notes_path
+    path = vault / f"{stem}.md"
+    if not path.exists():
+        raise FileNotFoundError(f"笔记不存在: {stem}")
+
+    text = path.read_text(encoding="utf-8")
+    parsed = _parse_frontmatter(text)
+    # 规整正文：去首尾空白，保证末尾一个换行（文件卫生）
+    body = new_body.strip()
+
+    # 重新拼装：frontmatter（原样保留）+ 新正文
+    meta = parsed.meta
+    fm_lines = [FM_DELIM]
+    for k, v in meta.items():
+        fm_lines.append(f"{k}: {v}")
+    fm_lines.append(FM_DELIM)
+    new_text = "\n".join(fm_lines) + "\n\n" + body + "\n"
+
+    path.write_text(new_text, encoding="utf-8")
+    return body
+
+
 def append_links(stem: str, targets: list[str]) -> tuple[list[str], str]:
     """在笔记的「关联笔记」小节追加 [[target]] 链接，自动去重。
 

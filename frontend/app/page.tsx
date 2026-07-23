@@ -191,6 +191,12 @@ export default function Page() {
     setSelectedSession(null);
   }, [sessions]);
 
+  // 笔记被编辑后：刷新笔记列表、图谱、向量索引（正文变了语义可能变）
+  const handleNoteEdited = useCallback(() => {
+    notes.refresh();
+    graph.refresh();
+  }, [notes, graph]);
+
   // 主区域内容（工作台模式）：流式生成 > 阅读视图 > 分析视图
   const showStreaming = streamingSummary !== null;
   const showNoteView = !showStreaming && viewingNote !== null;
@@ -255,6 +261,7 @@ export default function Page() {
               <NoteViewer
                 filename={viewingNote}
                 onBack={result ? handleBackToAnalysis : undefined}
+                onEdited={handleNoteEdited}
               />
             ) : showAnalysis ? (
               <>
@@ -303,6 +310,7 @@ export default function Page() {
               <NoteViewer
                 filename={viewingNote}
                 onBack={() => setViewingNote(null)}
+                onEdited={handleNoteEdited}
               />
             ) : (
               <GraphView
