@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .routers import chat, graph, notes, process, sessions, settings, system
+from .routers import chat, graph, notes, process, search, sessions, settings, system
 
 
 def create_app() -> FastAPI:
@@ -43,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(settings.router)
     app.include_router(chat.router)
     app.include_router(graph.router)
+    app.include_router(search.router)
     return app
 
 

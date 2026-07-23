@@ -150,3 +150,10 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
+
+// ---------- 语义检索 ----------
+export interface EmbeddingsStatus {
+  available: boolean;
+  model: string;
+  indexed_notes: number;
+}

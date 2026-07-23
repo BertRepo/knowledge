@@ -8,6 +8,7 @@ frontend/.env*.local
 
 # ===== Python =====
 backend/.venv/
+backend/.venv311/
 __pycache__/
 **/__pycache__/
 *.py[cod]
@@ -15,6 +16,11 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# ===== HuggingFace 模型缓存（embedding 模型自动下载，体积大）=====
+.cache/
+**/.cache/
+*.safetensors
 
 # ===== Node / Next.js =====
 frontend/node_modules/

@@ -5,7 +5,26 @@
 
 ## [Unreleased]
 
-规划中（见 PRD.md 路线图）：向量检索关联、自定义 Skill、浏览器扩展、移动端 PWA、全文搜索。
+规划中（见 PRD.md 路线图）：自定义 Skill、浏览器扩展、移动端 PWA、全文搜索增强。
+
+## [1.3.0] - 2026-07-22
+
+### Added
+
+- **向量检索关联（P2）**：本地 sentence-transformers embedding，语义召回关联笔记。
+  - `/api/relate-semantic`：为一篇笔记向量召回最相关的其他笔记（与 LLM 建议互补，毫秒级、零 token）。
+  - `/api/search`：用一段文本语义搜索整个笔记库（同义词也能命中）。
+  - `/api/embeddings/status`：检索可用性 + 索引笔记数。
+  - 向量按笔记 mtime 增量缓存；模型懒加载 + 线程安全。
+  - HuggingFace 默认走 `hf-mirror.com` 镜像（`HF_ENDPOINT` 可覆盖）。
+- **工作台语义搜索框**（`SearchBox`）：顶部输入问题/关键词，下拉召回结果。
+- **语义召回按钮**：`SuggestionList` 加「语义召回」，与「重新建议」并列。
+
+### Changed
+
+- 后端 Python 升级到 3.11（torch/sentence-transformers 需 3.11+）。
+  - 新 `.venv311` 虚拟环境，`start.sh` 优先使用。
+  - `requirements-ml.txt` 记录向量检索依赖。
 
 ## [1.2.0] - 2026-07-22
 

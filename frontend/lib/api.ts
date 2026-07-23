@@ -4,6 +4,7 @@
 import type {
   ChatMessage,
   ClearResponse,
+  EmbeddingsStatus,
   GraphData,
   HealthStatus,
   LinkResponse,
@@ -255,3 +256,16 @@ export const getSettings = () => apiFetch<SettingsView>("/api/settings");
 
 export const updateSettings = (body: SettingsUpdate) =>
   apiFetch<SettingsView>("/api/settings", { method: "PUT", body: JSON.stringify(body) });
+
+// ---- 语义检索（本地 embedding） ----
+// 向量召回关联笔记，与 LLM 关联建议互补：快、免费、覆盖面广。
+export const relateSemantic = (filename: string, top_k = 6) =>
+  postJson<RelatedSuggestion[]>("/api/relate-semantic", { filename, top_k });
+
+// 用一段文本语义搜索整个笔记库（工作台搜索框用）
+export const semanticSearch = (query: string, top_k = 6) =>
+  postJson<RelatedSuggestion[]>("/api/search", { query, top_k });
+
+// 向量检索是否可用（模型是否加载）
+export const getEmbeddingsStatus = () =>
+  apiFetch<EmbeddingsStatus>("/api/embeddings/status");

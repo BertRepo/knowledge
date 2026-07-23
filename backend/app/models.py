@@ -8,7 +8,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -181,3 +181,14 @@ class ChatRequest(BaseModel):
         default_factory=list,
         description="对话历史，最后一轮通常是 user 的追问。",
     )
+
+
+# ---------- 语义检索 ----------
+class SearchRequest(BaseModel):
+    """向量检索请求。两种用法共用：
+    - relate-semantic：传 filename，用该笔记自身做查询
+    - search：传 query，用任意文本做查询
+    """
+    filename: Optional[str] = None
+    query: Optional[str] = None
+    top_k: int = 6

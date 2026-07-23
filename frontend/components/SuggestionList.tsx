@@ -14,6 +14,8 @@ interface SuggestionListProps {
   /** 确认关联选中的目标；返回实际新增的列表（已去重）。 */
   onLink: (targets: string[]) => Promise<string[]>;
   onRelink?: () => Promise<void>;
+  /** 语义召回：用本地 embedding 向量检索补充建议（与 LLM 建议互补）。 */
+  onSemanticRelink?: () => Promise<void>;
   relinkLoading?: boolean;
 }
 
@@ -22,6 +24,7 @@ export function SuggestionList({
   noteFilename,
   onLink,
   onRelink,
+  onSemanticRelink,
   relinkLoading,
 }: SuggestionListProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -58,11 +61,18 @@ export function SuggestionList({
     <Card
       title="AI 建议关联"
       actions={
-        onRelink && (
-          <Button variant="ghost" size="sm" onClick={onRelink} loading={relinkLoading}>
-            重新建议
-          </Button>
-        )
+        <div className="flex items-center gap-1.5">
+          {onSemanticRelink && (
+            <Button variant="ghost" size="sm" onClick={onSemanticRelink} loading={relinkLoading}>
+              语义召回
+            </Button>
+          )}
+          {onRelink && (
+            <Button variant="ghost" size="sm" onClick={onRelink} loading={relinkLoading}>
+              重新建议
+            </Button>
+          )}
+        </div>
       }
     >
       {suggestions.length === 0 ? (

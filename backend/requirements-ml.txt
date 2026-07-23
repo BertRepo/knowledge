@@ -1,0 +1,14 @@
+# 向量检索依赖（可选，需 Python 3.11+）
+# 安装：python -m pip install -r requirements-ml.txt
+#       torch 用 CPU 版（体积小，无需 GPU）；如需 GPU 版见 https://pytorch.org
+#
+# 这些是 /api/search、/api/relate-semantic 的依赖。
+# 不装也能跑后端，只是语义检索接口会返回 503。
+
+# torch CPU 版（从 PyTorch 官方 index 装，避免下到 GPU 版体积过大）
+# torch==2.13.0
+# 安装 torch 请单独执行（需指定 --index-url）：
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+sentence-transformers==5.6.0
+numpy>=1.24

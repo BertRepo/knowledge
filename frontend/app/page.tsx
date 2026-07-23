@@ -25,7 +25,7 @@
  */
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { ApiError, getSession, linkNotes, processUrlStream, relateNote } from "@/lib/api";
+import { ApiError, getSession, linkNotes, processUrlStream, relateNote, relateSemantic } from "@/lib/api";
 import type { ProcessResponse } from "@/lib/types";
 import { useGraph } from "@/hooks/useGraph";
 import { useHealth } from "@/hooks/useHealth";
@@ -37,6 +37,7 @@ import { GraphView } from "@/components/GraphView";
 import { ManualLinkInput } from "@/components/ManualLinkInput";
 import { NoteList } from "@/components/NoteList";
 import { NoteViewer } from "@/components/NoteViewer";
+import { SearchBox } from "@/components/SearchBox";
 import { SessionHistory } from "@/components/SessionHistory";
 import { StatusBar } from "@/components/StatusBar";
 import { StreamingCard } from "@/components/StreamingCard";
@@ -128,6 +129,21 @@ export default function Page() {
     }
   }, [result]);
 
+  // 语义召回：用本地 embedding 向量检索补充关联建议（与 LLM 建议互补）
+  const handleSemanticRelink = useCallback(async () => {
+    if (!result) return;
+    setRelinkLoading(true);
+    try {
+      const sugg = await relateSemantic(result.note_filename);
+      setResult({ ...result, suggestions: sugg });
+      setError(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "向量检索不可用，请确认已安装 embedding 模型");
+    } finally {
+      setRelinkLoading(false);
+    }
+  }, [result]);
+
   const handleSelectSession = useCallback(async (file: string) => {
     setSelectedSession(file);
     setError(null);
@@ -188,7 +204,7 @@ export default function Page() {
       <header className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-            {"知识聚合器 · 网页 → AI 摘要 → Markdown 笔记"}
+            {"知识聚合器 · 做你的在线笔记助手"}
           </h1>
           <div className="flex items-center gap-4">
             {/* 页面切换：工作台 / 笔记库 */}
@@ -230,6 +246,8 @@ export default function Page() {
         /* ===== 工作台模式：左主区(分析/阅读) + 右侧(对话+会话) ===== */
         <div className="grid flex-1 grid-cols-1 gap-4 lg:grid-cols-[1fr_22rem]">
           <div className="flex flex-col gap-4">
+            {/* 语义搜索：输入问题/关键词，向量召回相关笔记 */}
+            <SearchBox onSelect={handleSelectNote} />
             <UrlForm onProcess={handleProcess} loading={processing} />
             {showStreaming ? (
               <StreamingCard summary={streamingSummary ?? ""} />
@@ -246,6 +264,7 @@ export default function Page() {
                   noteFilename={result.note_filename}
                   onLink={handleLink}
                   onRelink={handleRelink}
+                  onSemanticRelink={handleSemanticRelink}
                   relinkLoading={relinkLoading}
                 />
                 <ManualLinkInput
