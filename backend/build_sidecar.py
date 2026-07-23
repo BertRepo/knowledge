@@ -37,7 +37,7 @@ def main():
 
     print("打包 sidecar：", " ".join(cmd))
     subprocess.check_call(cmd)
-    print(f"\n✅ 打包完成：dist/{exe_name}")
+    print("\n=== 打包完成：dist/" + exe_name + " ===")
     print("把该文件复制到 frontend/src-tauri/ 作为 sidecar")
 
 
