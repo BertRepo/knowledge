@@ -197,6 +197,20 @@ export default function Page() {
     graph.refresh();
   }, [notes, graph]);
 
+  // 图谱上加连边：从 source 笔记向 target 笔记写 [[wikilink]]
+  const handleGraphLink = useCallback(
+    async (source: string, target: string) => {
+      try {
+        await linkNotes(source, [target]);
+        // 边加了，图谱和笔记列表都要刷新
+        await Promise.all([notes.refresh(), graph.refresh()]);
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "加连边失败");
+      }
+    },
+    [notes, graph],
+  );
+
   // 主区域内容（工作台模式）：流式生成 > 阅读视图 > 分析视图
   const showStreaming = streamingSummary !== null;
   const showNoteView = !showStreaming && viewingNote !== null;
@@ -317,6 +331,7 @@ export default function Page() {
                 data={graph.graph ?? { nodes: [], edges: [] }}
                 loading={graph.loading}
                 onSelectNode={handleSelectNote}
+                onLink={handleGraphLink}
               />
             )}
           </div>

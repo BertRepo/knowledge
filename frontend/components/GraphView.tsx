@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphData, GraphNode } from "@/lib/types";
 import { DOMAIN_LABELS } from "@/lib/types";
+import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
 import { Spinner } from "./ui/Spinner";
 
@@ -10,6 +11,8 @@ interface GraphViewProps {
   loading: boolean;
   /** 点击节点：在阅读视图打开该笔记。 */
   onSelectNode?: (filename: string) => void;
+  /** 从 source 笔记向 target 笔记加 [[wikilink]] 连边。 */
+  onLink?: (source: string, target: string) => Promise<void>;
 }
 
 // 领域 -> 节点配色，让同领域的笔记聚成一组颜色
@@ -28,6 +31,7 @@ interface SimNode {
   id: string;
   title: string;
   domain: string;
+  tags: string[];
   x: number;
   y: number;
   vx: number;
@@ -35,32 +39,38 @@ interface SimNode {
 }
 
 /**
- * 知识图谱视图：手写一个极简力导向布局，零第三方依赖。
+ * 知识图谱视图：手写力导向布局，零第三方依赖。
  *
- * 不引入 d3/cytoscape 等库的原因：当前图谱规模小（个人笔记库），
- * 原生 SVG + requestAnimationFrame 足够，避免引入几百 KB 的依赖。
+ * 不引入 d3/cytoscape 的原因：个人笔记库规模小，原生 SVG + rAF 足够。
  *
- * 力导向三股力：
- *  - 斥力：任意两节点互相排斥（按距离平方衰减）
- *  - 引力：有边相连的节点互相吸引
- *  - 中心力：所有节点被拉向画布中心，防止飞散
- * 迭代若干帧后趋于稳定，停帧。
+ * 三股力：斥力（两两排斥）、引力（有边相连的互相吸引）、中心力（防飞散）。
+ * 迭代 220 帧后停。
+ *
+ * 交互（P3 增强）：
+ *  - 领域筛选：点击图例芯片只看某领域的子图
+ *  - 节点拖拽：按住拖动节点，松手后仿真继续（被拖节点固定到松手位置）
+ *  - 加连边：hover 节点显示「+ 连到…」按钮，点它进入连线模式，再点目标节点即加 wikilink
  */
-export function GraphView({ data, loading, onSelectNode }: GraphViewProps) {
+export function GraphView({ data, loading, onSelectNode, onLink }: GraphViewProps) {
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [activeDomain, setActiveDomain] = useState<string | null>(null);
+  // 连线模式：选了 source 后点 target 触发 onLink
+  const [linkSource, setLinkSource] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
   const rafRef = useRef<number | null>(null);
+  // 被拖拽中的节点 id；拖拽期间该节点位置随鼠标，不受物理力影响
+  const dragId = useRef<string | null>(null);
 
-  // 把数据转成带物理属性的仿真节点，只在 data 变化时重建
   const nodesRef = useRef<SimNode[]>([]);
   const edges = data.edges;
 
   const simNodes = useMemo<SimNode[]>(() => {
-    // 随机初始化位置在中心附近，避免起始全部重叠在一点
     const cx = 200, cy = 200;
     return data.nodes.map((n: GraphNode) => ({
       id: n.id,
       title: n.title,
       domain: n.domain,
+      tags: n.tags,
       x: cx + (Math.cos(n.id.length * 1.7) * 120),
       y: cy + (Math.sin(n.id.length * 2.3) * 120),
       vx: 0,
@@ -72,7 +82,7 @@ export function GraphView({ data, loading, onSelectNode }: GraphViewProps) {
     nodesRef.current = simNodes;
   }, [simNodes]);
 
-  // 力导向仿真：跑固定帧数后停止，足够收敛又不会无限占用 CPU
+  // 力导向仿真：跑固定帧数后停止
   useEffect(() => {
     let frame = 0;
     const maxFrames = 220;
@@ -91,13 +101,12 @@ export function GraphView({ data, loading, onSelectNode }: GraphViewProps) {
           let dy = a.y - b.y;
           let dist2 = dx * dx + dy * dy;
           if (dist2 < 0.01) {
-            // 重合：给个随机扰动避免除零
             dx = Math.random() - 0.5;
             dy = Math.random() - 0.5;
             dist2 = 0.25;
           }
           const dist = Math.sqrt(dist2);
-          const force = 1400 / dist2; // 斥力大小
+          const force = 1400 / dist2;
           const fx = (dx / dist) * force;
           const fy = (dy / dist) * force;
           a.vx += fx; a.vy += fy;
@@ -111,25 +120,25 @@ export function GraphView({ data, loading, onSelectNode }: GraphViewProps) {
         if (!s || !t) continue;
         const dx = t.x - s.x, dy = t.y - s.y;
         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const force = (dist - 120) * 0.02; // 目标距离 120
+        const force = (dist - 120) * 0.02;
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
         s.vx += fx; s.vy += fy;
         t.vx -= fx; t.vy -= fy;
       }
 
-      // 中心力 + 阻尼 + 位置更新
+      // 中心力 + 阻尼 + 位置更新（拖拽中的节点跳过物理更新）
       for (const n of nodes) {
+        if (n.id === dragId.current) continue;
         n.vx += (cx - n.x) * 0.005;
         n.vy += (cy - n.y) * 0.005;
-        n.vx *= 0.85; // 阻尼，否则会震荡
+        n.vx *= 0.85;
         n.vy *= 0.85;
         n.x += n.vx;
         n.y += n.vy;
       }
 
       frame++;
-      // 用 DOM 直接更新 transform 比 setState 每帧重渲染便宜得多
       for (const n of nodes) {
         const el = document.getElementById(`gnode-${n.id}`);
         if (el) el.setAttribute("transform", `translate(${n.x}, ${n.y})`);
@@ -153,6 +162,66 @@ export function GraphView({ data, loading, onSelectNode }: GraphViewProps) {
     };
   }, [edges]);
 
+  // 节点拖拽：SVG 坐标换算 + 更新被拖节点位置
+  function onNodeMouseDown(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragId.current = id;
+    const node = nodesRef.current.find((n) => n.id === id);
+    if (node) {
+      node.vx = 0;
+      node.vy = 0;
+    }
+  }
+
+  function onSvgMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    if (!dragId.current) return;
+    const svg = e.currentTarget;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    // 屏幕坐标 -> SVG viewBox 坐标
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const loc = pt.matrixTransform(ctm.inverse());
+    const node = nodesRef.current.find((n) => n.id === dragId.current);
+    if (node) {
+      node.x = loc.x;
+      node.y = loc.y;
+      const el = document.getElementById(`gnode-${dragId.current}`);
+      if (el) el.setAttribute("transform", `translate(${loc.x}, ${loc.y})`);
+    }
+  }
+
+  function onSvgMouseUp() {
+    dragId.current = null;
+  }
+
+  // 点击节点：连线模式下当 target，否则打开阅读
+  function onNodeClick(id: string) {
+    if (linkSource) {
+      if (id !== linkSource && onLink) {
+        setLinking(true);
+        onLink(linkSource, id).finally(() => {
+          setLinking(false);
+          setLinkSource(null);
+        });
+      } else {
+        setLinkSource(null);
+      }
+      return;
+    }
+    onSelectNode?.(id);
+  }
+
+  // 筛选：选中领域时只显示该领域的节点
+  const visibleIds = useMemo(() => {
+    if (!activeDomain) return null;
+    return new Set(data.nodes.filter((n) => n.domain === activeDomain).map((n) => n.id));
+  }, [activeDomain, data.nodes]);
+
+  const isHidden = (id: string) => visibleIds !== null && !visibleIds.has(id);
+
   // 空状态
   if (!loading && data.nodes.length === 0) {
     return (
@@ -168,16 +237,36 @@ export function GraphView({ data, loading, onSelectNode }: GraphViewProps) {
     <Card
       title="知识图谱"
       actions={
-        loading && <span className="flex items-center gap-1.5 text-xs text-zinc-500"><Spinner className="h-3.5 w-3.5" />加载中</span>
+        <div className="flex items-center gap-2">
+          {linkSource && (
+            <span className="text-xs text-amber-600">
+              连线模式：点目标节点（选「{simNodes.find((n) => n.id === linkSource)?.title.slice(0, 8)}…」为源）
+            </span>
+          )}
+          {linkSource && (
+            <Button variant="ghost" size="sm" onClick={() => setLinkSource(null)} disabled={linking}>
+              取消连线
+            </Button>
+          )}
+          {loading && <span className="flex items-center gap-1.5 text-xs text-zinc-500"><Spinner className="h-3.5 w-3.5" />加载中</span>}
+        </div>
       }
     >
       <div className="overflow-x-auto">
-        <svg viewBox="0 0 400 400" className="h-[28rem] w-full">
-          {/* 先画边（在下层），再画节点 */}
+        <svg
+          viewBox="0 0 400 400"
+          className="h-[28rem] w-full"
+          onMouseMove={onSvgMouseMove}
+          onMouseUp={onSvgMouseUp}
+          onMouseLeave={onSvgMouseUp}
+        >
+          {/* 边 */}
           {edges.map((e, i) => {
             const s = simNodes.find((n) => n.id === e.source);
             const t = simNodes.find((n) => n.id === e.target);
             if (!s || !t) return null;
+            // 筛选时：两端都在可见集才显示边
+            if (isHidden(e.source) || isHidden(e.target)) return null;
             return (
               <path
                 key={i}
@@ -191,26 +280,28 @@ export function GraphView({ data, loading, onSelectNode }: GraphViewProps) {
             );
           })}
           {simNodes.map((n) => {
+            if (isHidden(n.id)) return null;
             const color = DOMAIN_COLORS[n.domain] || DOMAIN_COLORS.general;
             const isHover = hoverId === n.id;
+            const isLinkSource = linkSource === n.id;
             return (
               <g
                 key={n.id}
                 id={`gnode-${n.id}`}
                 transform={`translate(${n.x}, ${n.y})`}
-                className="cursor-pointer"
+                className={linkSource ? "cursor-crosshair" : "cursor-pointer"}
                 onMouseEnter={() => setHoverId(n.id)}
                 onMouseLeave={() => setHoverId(null)}
-                onClick={() => onSelectNode?.(n.id)}
+                onMouseDown={(e) => onNodeMouseDown(e, n.id)}
+                onClick={() => onNodeClick(n.id)}
               >
                 <circle
                   r={isHover ? 9 : 7}
                   fill={color}
-                  stroke="white"
-                  strokeWidth={1.5}
+                  stroke={isLinkSource ? "#f59e0b" : "white"}
+                  strokeWidth={isLinkSource ? 3 : 1.5}
                   className="transition-all"
                 />
-                {/* 标题只在 hover 时显示，避免常态文字重叠成一团 */}
                 {isHover && (
                   <text
                     y={-14}
@@ -220,19 +311,60 @@ export function GraphView({ data, loading, onSelectNode }: GraphViewProps) {
                     {n.title.length > 14 ? n.title.slice(0, 14) + "…" : n.title}
                   </text>
                 )}
+                {/* hover 时显示「加连边」小按钮（需要 onLink 回调） */}
+                {isHover && onLink && !linkSource && (
+                  <g
+                    transform="translate(12, -12)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLinkSource(n.id);
+                    }}
+                  >
+                    <circle r={7} fill="#f59e0b" />
+                    <text
+                      y={3}
+                      textAnchor="middle"
+                      className="cursor-pointer fill-white text-[10px] font-bold"
+                    >
+                      +
+                    </text>
+                  </g>
+                )}
               </g>
             );
           })}
         </svg>
       </div>
-      {/* 领域图例 */}
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
-        {Object.entries(DOMAIN_LABELS).map(([key, label]) => (
-          <span key={key} className="flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: DOMAIN_COLORS[key] || DOMAIN_COLORS.general }} />
-            {label}
-          </span>
-        ))}
+      {/* 领域图例 + 筛选：点击切换该领域的子图 */}
+      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-xs text-zinc-500">
+        {activeDomain && (
+          <button
+            type="button"
+            onClick={() => setActiveDomain(null)}
+            className="rounded-full bg-zinc-200 px-2 py-0.5 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+          >
+            全部 ✕
+          </button>
+        )}
+        {Object.entries(DOMAIN_LABELS).map(([key, label]) => {
+          const count = data.nodes.filter((n) => n.domain === key).length;
+          if (count === 0) return null; // 没有该领域的笔记就不显示，减少干扰
+          const isActive = activeDomain === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveDomain(isActive ? null : key)}
+              className={`flex items-center gap-1 rounded-full px-1.5 py-0.5 transition-colors ${
+                isActive ? "bg-zinc-200 dark:bg-zinc-700" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              }`}
+            >
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: DOMAIN_COLORS[key] || DOMAIN_COLORS.general }} />
+              {label}
+              <span className="opacity-60">{count}</span>
+            </button>
+          );
+        })}
       </div>
     </Card>
   );
