@@ -4,7 +4,8 @@
 // 打包模式：调 PyInstaller 打包的单文件后端（随 Tauri bundle 分发）
 //
 // 后端监听 127.0.0.1:8000，前端 WebView 调它的 API。
-// llama-server（本地 LLM）由后端 providers.py 按需启动，这里不管。
+// llama-server + GGUF 模型作为 Tauri resources 打包，sidecar_main.py
+// 在打包模式下从 exe 同级目录的 local-model/ 解析路径。
 
 use std::process::{Command, Child};
 use std::sync::Mutex;
@@ -25,7 +26,6 @@ pub fn run() {
         )?;
       }
 
-      // 启动 Python 后端 sidecar
       let child = start_backend();
       let state: tauri::State<BackendProcess> = app.state();
       *state.0.lock().unwrap() = child;
@@ -49,23 +49,21 @@ pub fn run() {
 
 /// 启动 Python 后端。
 ///
-/// 打包后：调同目录下的 `knowledge-backend`（PyInstaller 单文件）。
+/// 打包后：调同目录下的 sidecar `knowledge-backend`。
 /// 开发时：调 backend/.venv311 的 uvicorn。
 fn start_backend() -> Option<Child> {
-  // 打包模式：sidecar 可执行文件在资源目录
   let sidecar = if cfg!(target_os = "windows") {
     "knowledge-backend.exe"
   } else {
     "knowledge-backend"
   };
 
-  // 先试打包的 sidecar（存在说明是 release）
+  // 打包模式：sidecar 可执行文件（Tauri 会放到可被 PATH 找到的位置）
   if let Ok(child) = Command::new(sidecar).spawn() {
     return Some(child);
   }
 
   // 开发模式：调 venv311 的 uvicorn
-  // 从项目根目录的 backend/.venv311 启动
   let python = if cfg!(target_os = "windows") {
     "../backend/.venv311/Scripts/python.exe"
   } else {

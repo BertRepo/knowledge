@@ -62,13 +62,21 @@ npx tauri build
   用户在应用内「配置」页可改为任意路径（写回 .env，热生效）。
 - **配置文件**：打包后 .env 不随包分发（含密钥），配置存用户 app data 目录。
 
-## 本地模型（可选，随包分发）
+## 本地模型（随包分发，已配）
 
-llama-server + GGUF 模型体积大（~1.2GB），默认不打进包。两种方案：
+llama-server（30MB，已删无关 exe）+ qwen2.5-1.5b GGUF（1.1GB）= 约 1.2GB，**已打进安装包**：
 
-1. **用户自备**：用户在配置页填 llama-server 路径和模型路径（推荐，包小）。
-2. **随包分发**：把 llama-server.exe + model.gguf 放 `src-tauri/resources/`，
-   在 `tauri.conf.json` 的 `bundle.resources` 里声明，启动时复制到 app data 目录。
+- `tauri.conf.json` 的 `bundle.resources` 声明了 `backend/local-model/` -> 安装包内 `local-model/`
+- `sidecar_main.py` 打包模式下从 exe 同级 `local-model/` 找模型，设 `LOCAL_LLM_*` 环境变量
+- NSIS 压缩用 `lzma`（最高压缩率），安装包装到 `~/AppData/Local/知识聚合器/`
+- 打包后默认 `LLM_PROVIDER=local`（离线可用），用户可在配置页切 online
+
+体积优化（已做）：
+- llama-server 目录删了 18 个无关 exe（64MB -> 30MB）
+- GGUF 已是 q4_k_m 量化（1.1GB），再小会明显掉中文质量
+- 安装包用 LZMA 压缩，DLL/exe 部分能压到 ~40%
+
+如需更小的包：换 llama-3.2-1b（771MB）替代 qwen2.5-1.5b，但中文摘要质量下降。
 
 ## 跨平台注意
 
