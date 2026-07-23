@@ -21,6 +21,25 @@ export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 
 say() { printf '\033[1;36m[start]\033[0m %s\n' "$*"; }
 
+# ---------- 启动前清理残留进程 ----------
+# 解决两个反复出现的问题：
+#  1. WinError 10013：上次没干净退出的 uvicorn 还占着 8000 端口
+#  2. EPERM rename：残留的 next dev（端口 3000）锁住 .next 文件
+cleanup_stale() {
+  if ! command -v taskkill >/dev/null 2>&1; then return; fi
+  # 只杀占用 8000（后端）和 3000（前端）的进程，不误杀其他 node（如 IDE）
+  for port in 8000 3000; do
+    local pids
+    pids=$(netstat -ano 2>/dev/null | grep ":${port}.*LISTENING" | awk '{print $5}' | sort -u)
+    for pid in $pids; do
+      taskkill //F //T //PID "$pid" >/dev/null 2>&1 || true
+    done
+  done
+}
+say "清理残留进程（避免端口/文件锁冲突）..."
+cleanup_stale || true
+sleep 1
+
 # ---------- 后端准备 ----------
 say "后端：检查虚拟环境..."
 if [ ! -f "$PYTHON" ]; then
@@ -45,6 +64,8 @@ say "前端：检查依赖..."
 if [ ! -d "$ROOT/frontend/node_modules" ]; then
   ( cd "$ROOT/frontend" && npm install )
 fi
+# 清理可能被锁坏的 .next 缓存（EPERM rename 后残留的 .tmp 文件会导致 500）
+rm -rf "$ROOT/frontend/.next" 2>/dev/null || true
 
 # ---------- 启动 ----------
 say "启动后端 :8000..."

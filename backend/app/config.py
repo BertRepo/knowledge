@@ -1,7 +1,14 @@
 """集中式配置：从环境变量 / .env 文件加载。
 
-用 pydantic-settings 而不是手写 os.getenv，好处是类型校验 + 默认值 + .env
-读取一步到位。get_settings 用 lru_cache 缓存单例，避免每次调用都重读 .env。
+配置分三组（对应前端配置页的三个分区）：
+  1. 在线 LLM API：调云端大模型（Anthropic/OpenAI 兼容格式），能力强但需联网+密钥
+  2. 本地 LLM：llama.cpp（llama-server）跑本地 GGUF 模型，离线免费但能力弱
+  3. 应用配置：笔记目录、CORS 等，与 AI 无关
+
+LLM_PROVIDER 决定实际用哪个：
+  - "online"  -> 走在线 API（按 LLM_API_FORMAT 选 anthropic/openai 请求格式）
+  - "local"   -> 启动 llama-server 子进程，走 OpenAI 兼容接口
+  - "none"    -> 未配置，AI 相关接口报错
 """
 from __future__ import annotations
 
@@ -16,22 +23,40 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    # AI
-    ai_base_url: str = "https://api.anthropic.com"
-    ai_api_path: str = "/v1/messages"
-    ai_api_key: str = ""
-    ai_model: str = "claude-sonnet-5"
-    ai_anthropic_version: str = "2023-06-01"
-    ai_max_tokens: int = 2048
-    ai_timeout: float = 120.0
+    # ===== LLM 选择 =====
+    # online=云端 API，local=本地 llama.cpp，none=未配置
+    llm_provider: str = "online"
 
-    # 笔记目录（纯 Markdown 文件，不绑定特定编辑器）
+    # ===== 在线 LLM API（云端大模型）=====
+    llm_api_format: str = "anthropic"  # anthropic | openai（请求/响应格式）
+    llm_base_url: str = "https://api.anthropic.com"
+    llm_api_path: str = "/v1/messages"  # anthropic 默认；openai 一般 /v1/chat/completions
+    llm_api_key: str = ""
+    llm_model: str = "claude-sonnet-5"
+    llm_anthropic_version: str = "2023-06-01"  # 仅 anthropic 格式用
+    llm_max_tokens: int = 2048
+    llm_timeout: float = 120.0
+
+    # ===== 本地 LLM（llama.cpp / llama-server）=====
+    # llama-server 可执行文件路径（编译好的 llama.cpp，提供 OpenAI 兼容 API）
+    local_llm_server_path: str = ""
+    # GGUF 模型文件路径
+    local_llm_model_path: str = ""
+    local_llm_port: int = 8080
+    # GPU 层数（0=纯 CPU；Mac 用 Metal 时可调大）
+    local_llm_gpu_layers: int = 0
+    # 本地模型上下文长度（小模型建议 4096）
+    local_llm_ctx_size: int = 4096
+
+    # ===== 应用配置（与 AI 无关）=====
     notes_dir: str = "f:/myWorkspacePrivate/knowledge/vault"
-
-    # Server
     cors_origins: str = "http://localhost:3000"
     backend_host: str = "127.0.0.1"
     backend_port: int = 8000
+
+    # ===== 向量检索（embedding，独立于 LLM）=====
+    # 模型名（sentence-transformers），空则禁用语义检索
+    embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
     @property
     def notes_path(self) -> Path:
@@ -45,10 +70,25 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
-    def ai_endpoint(self) -> str:
-        base = self.ai_base_url.rstrip("/")
-        path = self.ai_api_path if self.ai_api_path.startswith("/") else f"/{self.ai_api_path}"
+    def llm_endpoint(self) -> str:
+        """在线 API 的完整端点 URL。"""
+        base = self.llm_base_url.rstrip("/")
+        path = self.llm_api_path if self.llm_api_path.startswith("/") else f"/{self.llm_api_path}"
         return f"{base}{path}"
+
+    @property
+    def local_llm_endpoint(self) -> str:
+        """本地 llama-server 的 OpenAI 兼容端点。"""
+        return f"http://127.0.0.1:{self.local_llm_port}/v1/chat/completions"
+
+    @property
+    def llm_configured(self) -> bool:
+        """当前 provider 是否已配好可用。"""
+        if self.llm_provider == "online":
+            return bool(self.llm_api_key and self.llm_base_url)
+        if self.llm_provider == "local":
+            return bool(self.local_llm_server_path and self.local_llm_model_path)
+        return False
 
 
 @lru_cache
@@ -60,13 +100,20 @@ def get_settings() -> Settings:
 
 # SettingsUpdate 字段名 -> .env 里的环境变量名
 ENV_KEY_MAP = {
-    "ai_base_url": "AI_BASE_URL",
-    "ai_api_path": "AI_API_PATH",
-    "ai_api_key": "AI_API_KEY",
-    "ai_model": "AI_MODEL",
-    "ai_anthropic_version": "AI_ANTHROPIC_VERSION",
-    "ai_max_tokens": "AI_MAX_TOKENS",
-    "ai_timeout": "AI_TIMEOUT",
+    "llm_provider": "LLM_PROVIDER",
+    "llm_api_format": "LLM_API_FORMAT",
+    "llm_base_url": "LLM_BASE_URL",
+    "llm_api_path": "LLM_API_PATH",
+    "llm_api_key": "LLM_API_KEY",
+    "llm_model": "LLM_MODEL",
+    "llm_anthropic_version": "LLM_ANTHROPIC_VERSION",
+    "llm_max_tokens": "LLM_MAX_TOKENS",
+    "llm_timeout": "LLM_TIMEOUT",
+    "local_llm_server_path": "LOCAL_LLM_SERVER_PATH",
+    "local_llm_model_path": "LOCAL_LLM_MODEL_PATH",
+    "local_llm_port": "LOCAL_LLM_PORT",
+    "local_llm_gpu_layers": "LOCAL_LLM_GPU_LAYERS",
+    "local_llm_ctx_size": "LOCAL_LLM_CTX_SIZE",
     "notes_dir": "NOTES_DIR",
     "cors_origins": "CORS_ORIGINS",
 }

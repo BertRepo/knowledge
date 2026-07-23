@@ -14,6 +14,7 @@ import httpx
 
 from .config import get_settings
 from .models import AnalysisResult, RelatedSuggestion
+from . import providers
 from .skills import VALID_DOMAINS, skills_prompt
 
 # ---------------------------------------------------------------------------
@@ -27,119 +28,26 @@ class AIError(RuntimeError):
 
 
 def complete(system: str, user: str, *, max_tokens: int | None = None) -> str:
-    """调用 Messages API，返回模型的纯文本回答。
+    """调用 LLM 返回纯文本回答（委托 providers，自动选 anthropic/openai/local）。
 
-    参数：
-        system: 系统提示词（定义模型角色与输出格式）
-        user:   用户消息（具体任务内容）
-        max_tokens: 覆盖默认的最大输出长度；None 时用配置里的 AI_MAX_TOKENS
+    上层只管「给 system+user，拿文本」，具体走哪个后端由 config.llm_provider 决定，
+    在 providers 层消化格式差异（Anthropic content blocks / OpenAI choices）。
     """
-    s = get_settings()
-    if not s.ai_api_key:
-        raise AIError(
-            "AI_API_KEY 未配置：请在 backend/.env 中填入你的内部 AI token/私钥"
-        )
-
-    payload = {
-        "model": s.ai_model,
-        "max_tokens": max_tokens or s.ai_max_tokens,
-        "system": system,
-        "messages": [{"role": "user", "content": user}],
-    }
-    # 同时发两种鉴权头以最大化兼容性：
-    # - x-api-key：Anthropic 官方标准头
-    # - Authorization: Bearer：Ccswitch / ANTHROPIC_AUTH_TOKEN 风格的内部网关用的头
-    # 内部网关两种都接受，全发出去避免某一种缺失导致 401。
-    headers = {
-        "x-api-key": s.ai_api_key,
-        "Authorization": f"Bearer {s.ai_api_key}",
-        "anthropic-version": s.ai_anthropic_version,
-        "content-type": "application/json",
-    }
-
     try:
-        resp = httpx.post(
-            s.ai_endpoint,
-            json=payload,
-            headers=headers,
-            timeout=s.ai_timeout,
-        )
-    except httpx.RequestError as e:
-        raise AIError(f"请求内部 AI 失败（网络/地址）：{e}") from e
-
-    if resp.status_code >= 400:
-        raise AIError(f"AI 接口返回 {resp.status_code}: {resp.text[:500]}")
-
-    try:
-        data = resp.json()
-        # Anthropic 响应结构：content 是 block 数组，每个 block 有 type 字段。
-        # 推理模型会先输出 type=="thinking" 的思考块，我们只取 type=="text" 的最终回答。
-        blocks = data.get("content", [])
-        texts = [b.get("text", "") for b in blocks if b.get("type") == "text"]
-        out = "\n".join(t for t in texts if t)
-        if not out:
-            # 推理模型可能把整个 token 预算都花在 thinking 上，一个 text 块都没产出。
-            # 检测到这种情况就提示用户调大 AI_MAX_TOKENS。
-            has_thinking = any(b.get("type") == "thinking" for b in blocks)
-            hint = "（模型只返回了思考内容，请增大 AI_MAX_TOKENS）" if has_thinking else ""
-            raise AIError(f"AI 返回内容为空{hint}: {json.dumps(data, ensure_ascii=False)[:400]}")
-        return out
-    except (ValueError, KeyError) as e:
-        raise AIError(f"解析 AI 响应失败: {e}; 原文: {resp.text[:500]}") from e
+        return providers.complete(system, user, max_tokens=max_tokens)
+    except providers.ProviderError as e:
+        raise AIError(str(e)) from e
 
 
 def complete_stream(system: str, user: str, *, max_tokens: int | None = None):
-    """流式调用 Messages API，yield 文本增量（生成器）。
+    """流式调用 LLM，yield 文本增量（委托 providers）。
 
-    Anthropic 流式响应是 SSE 格式：每条事件以 "data: " 开头，JSON 里 type 字段
-    标明事件类型。我们只关心 content_block_delta 事件里的 text_delta，那就是
-    模型逐字吐出的正文。reasoning 模型的 thinking 增量会被跳过。
+    具体解析（Anthropic content_block_delta / OpenAI delta.content）在 providers 层。
     """
-    s = get_settings()
-    if not s.ai_api_key:
-        raise AIError(
-            "AI_API_KEY 未配置：请在 backend/.env 中填入你的内部 AI token/私钥"
-        )
-
-    payload = {
-        "model": s.ai_model,
-        "max_tokens": max_tokens or s.ai_max_tokens,
-        "system": system,
-        "messages": [{"role": "user", "content": user}],
-        "stream": True,  # 开启流式
-    }
-    headers = {
-        "x-api-key": s.ai_api_key,
-        "Authorization": f"Bearer {s.ai_api_key}",
-        "anthropic-version": s.ai_anthropic_version,
-        "content-type": "application/json",
-    }
-
-    # httpx.Client.stream 流式读取响应体，避免等整个响应才返回
-    with httpx.Client(timeout=s.ai_timeout) as client:
-        with client.stream("POST", s.ai_endpoint, json=payload, headers=headers) as resp:
-            if resp.status_code >= 400:
-                body = resp.read().decode("utf-8", errors="replace")
-                raise AIError(f"AI 接口返回 {resp.status_code}: {body[:500]}")
-
-            # 逐行解析 SSE：data: 开头的行是事件数据
-            for line in resp.iter_lines():
-                if not line or not line.startswith("data: "):
-                    continue
-                data_str = line[6:]  # 去掉 "data: " 前缀
-                if data_str.strip() == "[DONE]":
-                    break
-                try:
-                    evt = json.loads(data_str)
-                except json.JSONDecodeError:
-                    continue
-                # 文本增量事件：delta.type == "text_delta" 时 delta.text 是新增文本
-                if evt.get("type") == "content_block_delta":
-                    delta = evt.get("delta", {})
-                    if delta.get("type") == "text_delta":
-                        text = delta.get("text", "")
-                        if text:
-                            yield text
+    try:
+        yield from providers.complete_stream(system, user, max_tokens=max_tokens)
+    except providers.ProviderError as e:
+        raise AIError(str(e)) from e
 
 
 # ---------------------------------------------------------------------------
@@ -148,53 +56,14 @@ def complete_stream(system: str, user: str, *, max_tokens: int | None = None):
 
 
 def chat_stream(system: str, messages: list[dict], *, max_tokens: int | None = None):
-    """多轮流式对话，yield 文本增量（生成器）。
+    """多轮流式对话，yield 文本增量（委托 providers）。
 
-    与 complete_stream 的区别：messages 是多轮历史 [{role, content}, ...]，
-    而不是单个 user 文本。复用同一套 SSE 解析逻辑（只取 text_delta）。
+    与 complete_stream 区别：messages 是多轮历史，而非单个 user 文本。
     """
-    s = get_settings()
-    if not s.ai_api_key:
-        raise AIError(
-            "AI_API_KEY 未配置：请在 backend/.env 中填入你的内部 AI token/私钥"
-        )
-
-    payload = {
-        "model": s.ai_model,
-        "max_tokens": max_tokens or s.ai_max_tokens,
-        "system": system,
-        "messages": messages,
-        "stream": True,
-    }
-    headers = {
-        "x-api-key": s.ai_api_key,
-        "Authorization": f"Bearer {s.ai_api_key}",
-        "anthropic-version": s.ai_anthropic_version,
-        "content-type": "application/json",
-    }
-
-    with httpx.Client(timeout=s.ai_timeout) as client:
-        with client.stream("POST", s.ai_endpoint, json=payload, headers=headers) as resp:
-            if resp.status_code >= 400:
-                body = resp.read().decode("utf-8", errors="replace")
-                raise AIError(f"AI 接口返回 {resp.status_code}: {body[:500]}")
-            for line in resp.iter_lines():
-                if not line or not line.startswith("data: "):
-                    continue
-                data_str = line[6:]
-                if data_str.strip() == "[DONE]":
-                    break
-                try:
-                    evt = json.loads(data_str)
-                except json.JSONDecodeError:
-                    continue
-                if evt.get("type") == "content_block_delta":
-                    delta = evt.get("delta", {})
-                    if delta.get("type") == "text_delta":
-                        text = delta.get("text", "")
-                        if text:
-                            yield text
-
+    try:
+        yield from providers.chat_stream(system, messages, max_tokens=max_tokens)
+    except providers.ProviderError as e:
+        raise AIError(str(e)) from e
 
 # ---------------------------------------------------------------------------
 # JSON 提取：模型不一定老老实实只输出 JSON，需要兜底解析

@@ -3,10 +3,11 @@
 
 export interface HealthStatus {
   status: string;
-  vault: string;
-  ai_configured: boolean;
-  ai_endpoint: string;
-  ai_model: string;
+  notes_dir: string;
+  llm_provider: string; // online | local | none
+  llm_configured: boolean;
+  llm_model: string;
+  local_ready: boolean;
   notes_count: number;
 }
 
@@ -89,30 +90,52 @@ export interface ClearResponse {
   cleared: number;
 }
 
-// ---------- Settings (API 配置页) ----------
+// ---------- Settings（配置页：LLM 选择 / 在线 API / 本地模型 / 应用配置） ----------
 export interface SettingsView {
-  ai_base_url: string;
-  ai_api_path: string;
-  ai_api_key: string; // 掩码
-  ai_api_key_configured: boolean;
-  ai_model: string;
-  ai_anthropic_version: string;
-  ai_max_tokens: number;
-  ai_timeout: number;
+  // LLM 选择
+  llm_provider: string; // online | local | none
+  llm_configured: boolean;
+  // 在线 API
+  llm_api_format: string; // anthropic | openai
+  llm_base_url: string;
+  llm_api_path: string;
+  llm_api_key: string; // 掩码
+  llm_api_key_configured: boolean;
+  llm_model: string;
+  llm_anthropic_version: string;
+  llm_max_tokens: number;
+  llm_timeout: number;
+  // 本地模型
+  local_llm_server_path: string;
+  local_llm_model_path: string;
+  local_llm_port: number;
+  local_llm_gpu_layers: number;
+  local_llm_ctx_size: number;
+  local_ready: boolean;
+  // 应用配置
   notes_dir: string;
   cors_origins: string;
+  embedding_model: string;
 }
 
 export interface SettingsUpdate {
-  ai_base_url?: string;
-  ai_api_path?: string;
-  ai_api_key?: string; // 留空 = 不改
-  ai_model?: string;
-  ai_anthropic_version?: string;
-  ai_max_tokens?: number;
-  ai_timeout?: number;
+  llm_provider?: string;
+  llm_api_format?: string;
+  llm_base_url?: string;
+  llm_api_path?: string;
+  llm_api_key?: string; // 留空 = 不改
+  llm_model?: string;
+  llm_anthropic_version?: string;
+  llm_max_tokens?: number;
+  llm_timeout?: number;
+  local_llm_server_path?: string;
+  local_llm_model_path?: string;
+  local_llm_port?: number;
+  local_llm_gpu_layers?: number;
+  local_llm_ctx_size?: number;
   notes_dir?: string;
   cors_origins?: string;
+  embedding_model?: string;
 }
 
 // 领域 -> 中文标签（与后端 skills.py 对齐）

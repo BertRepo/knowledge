@@ -126,32 +126,59 @@ class ClearResponse(BaseModel):
     cleared: int  # 实际删除的会话数
 
 
-# ---------- 设置（API 配置页） ----------
+# ---------- 设置（配置页：分 LLM 选择 / 在线 API / 本地模型 / 应用配置） ----------
 class SettingsView(BaseModel):
     """GET /api/settings 的响应，密钥已掩码不会泄露。"""
-    ai_base_url: str
-    ai_api_path: str
-    ai_api_key: str  # 掩码后的 key
-    ai_api_key_configured: bool
-    ai_model: str
-    ai_anthropic_version: str
-    ai_max_tokens: int
-    ai_timeout: float
+    # LLM 选择
+    llm_provider: str  # online | local | none
+    llm_configured: bool
+    # 在线 API
+    llm_api_format: str  # anthropic | openai
+    llm_base_url: str
+    llm_api_path: str
+    llm_api_key: str  # 掩码后的 key
+    llm_api_key_configured: bool
+    llm_model: str
+    llm_anthropic_version: str
+    llm_max_tokens: int
+    llm_timeout: float
+    # 本地模型
+    local_llm_server_path: str
+    local_llm_model_path: str
+    local_llm_port: int
+    local_llm_gpu_layers: int
+    local_llm_ctx_size: int
+    local_ready: bool  # llama-server 是否已在跑
+    # 应用配置
     notes_dir: str
     cors_origins: str
+    # 向量检索
+    embedding_model: str
 
 
 class SettingsUpdate(BaseModel):
-    """PUT /api/settings 请求体，所有字段可选；ai_api_key 留空表示不修改。"""
-    ai_base_url: Optional[str] = None
-    ai_api_path: Optional[str] = None
-    ai_api_key: Optional[str] = None
-    ai_model: Optional[str] = None
-    ai_anthropic_version: Optional[str] = None
-    ai_max_tokens: Optional[int] = None
-    ai_timeout: Optional[float] = None
+    """PUT /api/settings 请求体，所有字段可选；密钥留空表示不修改。"""
+    # LLM 选择
+    llm_provider: Optional[str] = None
+    # 在线 API
+    llm_api_format: Optional[str] = None
+    llm_base_url: Optional[str] = None
+    llm_api_path: Optional[str] = None
+    llm_api_key: Optional[str] = None
+    llm_model: Optional[str] = None
+    llm_anthropic_version: Optional[str] = None
+    llm_max_tokens: Optional[int] = None
+    llm_timeout: Optional[float] = None
+    # 本地模型
+    local_llm_server_path: Optional[str] = None
+    local_llm_model_path: Optional[str] = None
+    local_llm_port: Optional[int] = None
+    local_llm_gpu_layers: Optional[int] = None
+    local_llm_ctx_size: Optional[int] = None
+    # 应用配置
     notes_dir: Optional[str] = None
     cors_origins: Optional[str] = None
+    embedding_model: Optional[str] = None
 
 
 # ---------- 知识图谱 ----------
