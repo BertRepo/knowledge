@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import threading
+from typing import TYPE_CHECKING
 from typing import Optional
 
 # 必须在 import sentence_transformers 之前设置：让模型下载走镜像。
@@ -24,11 +25,14 @@ from typing import Optional
 if not os.environ.get("HF_ENDPOINT"):
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
-import numpy as np
-
+# numpy/sentence_transformers 延迟 import（在函数内），让打包版（不含这些重依赖）
+# 也能启动后端；只在用到向量检索时才报 ModuleNotFoundError。
 from . import vault
 from .config import get_settings
 from .models import RelatedSuggestion
+
+if TYPE_CHECKING:
+    import numpy as np_typing
 
 # 多语言模型（含中文），384 维，模型文件约 120MB。
 # 选这个而不是更大的：平衡质量与下载体积，适合本地/客户端。
@@ -53,20 +57,23 @@ class _Embedder:
         if self._model is None:
             with self._lock:
                 if self._model is None:  # double-check，避免重复加载
-                    # 延迟 import：让没装 torch 的环境也能启动后端（只在用到时才报错）
-                    from sentence_transformers import SentenceTransformer
-
-                    self._model = SentenceTransformer(_MODEL_NAME)
+                    # 动态 import：用 importlib 而非直接 import，PyInstaller 静态分析
+                    # 看不到模块名，不会把 sentence_transformers/torch 的依赖链打进包
+                    # （打包版默认用本地 LLM，不需要向量检索；需要时让用户单独装）
+                    import importlib
+                    st = importlib.import_module("sentence_transformers")
+                    self._model = st.SentenceTransformer(_MODEL_NAME)
         return self._model
 
 
 _embedder = _Embedder()
 
 
-def _embed_texts(texts: list[str]) -> np.ndarray:
+def _embed_texts(texts: list[str]):
     """把一批文本编码成向量矩阵 (n, dim)，已归一化（便于直接算点积 = 余弦）。"""
     model = _embedder.model()
     # normalize_embeddings=True 后，向量点积就是余弦相似度
+    import numpy as np
     vecs = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
     return np.asarray(vecs, dtype=np.float32)
 
@@ -99,7 +106,7 @@ class _Index:
         self._filenames: list[str] = []
         self._mtimes: dict[str, float] = {}
         self._titles: dict[str, str] = {}
-        self._matrix: Optional[np.ndarray] = None  # (n, dim)
+        self._matrix = None  # numpy 矩阵 (n, dim)；延迟 import，类型用 Any
 
     def _needs_build(self) -> bool:
         if self._matrix is None:
@@ -143,6 +150,7 @@ class _Index:
                 self._filenames = []
                 self._mtimes = {}
                 self._titles = {}
+                import numpy as np
                 self._matrix = np.zeros((0, 1), dtype=np.float32)
                 return
             self._matrix = _embed_texts(texts)
@@ -150,12 +158,13 @@ class _Index:
             self._mtimes = mtimes
             self._titles = titles
 
-    def search(self, query_vec: np.ndarray, exclude: str, top_k: int) -> list[RelatedSuggestion]:
+    def search(self, query_vec, exclude: str, top_k: int) -> list[RelatedSuggestion]:
         """对单条查询向量算余弦相似度，返回 top-k（排除自身）。"""
         self.ensure()
         if self._matrix is None or len(self._filenames) == 0:
             return []
         # 归一化向量的点积 = 余弦相似度
+        import numpy as np
         sims = self._matrix @ query_vec  # (n,)
         # 按 sim 降序取 top_k，排除 exclude
         order = np.argsort(-sims)
@@ -183,7 +192,7 @@ class _Index:
 _index = _Index()
 
 
-def embed_query(text: str) -> np.ndarray:
+def embed_query(text: str):
     """把一段查询文本编码成向量（归一化）。"""
     return _embed_texts([text])[0]
 

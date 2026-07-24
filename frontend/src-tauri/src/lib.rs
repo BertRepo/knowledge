@@ -1,11 +1,15 @@
-// Tauri 应用入口：启动时拉起 Python 后端（sidecar），退出时清理。
+// Tauri 应用入口：启动时拉起 Python 后端（sidecar），退出时彻底清理。
 //
-// 开发模式：直接调 uvicorn（用 .venv311 的 python）
-// 打包模式：调 PyInstaller 打包的单文件后端（随 Tauri bundle 分发）
+// 关键：必须杀整个进程树，否则 sidecar 或 llama-server 成孤儿进程，
+// 锁住 knowledge-backend.exe 导致下次安装报 "can't write"。
 //
-// 后端监听 127.0.0.1:8000，前端 WebView 调它的 API。
-// llama-server + GGUF 模型作为 Tauri resources 打包，sidecar_main.py
-// 在打包模式下从 exe 同级目录的 local-model/ 解析路径。
+// 清理策略（三重保险，任一触发都杀）：
+// 1. 窗口 Destroyed 事件
+// 2. RunEvent::ExitRequested（应用退出请求）
+// 3. RunEvent::Exit（应用真正退出，最后兜底）
+//
+// Windows 上用 taskkill /T /F 或 CreateToolhelp32Snapshot 杀进程树，
+// 单纯 Child::kill 只杀主进程不杀子进程（llama-server 会残留）。
 
 use std::process::{Command, Child};
 use std::sync::Mutex;
@@ -33,27 +37,65 @@ pub fn run() {
       Ok(())
     })
     .on_window_event(|window, event| {
-      // 窗口关闭时杀掉后端子进程，避免残留
+      // 窗口关闭：触发清理（多窗口时只在主窗口关时杀）
       if let tauri::WindowEvent::Destroyed = event {
-        let app = window.app_handle();
-        let state: tauri::State<BackendProcess> = app.state();
-        let child = { state.0.lock().unwrap().take() };
-        if let Some(mut c) = child {
-          let _ = c.kill();
-        }
+        kill_backend(window.app_handle());
       }
     })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .build(tauri::generate_context!())
+    .expect("error while building tauri application")
+    .run(|app, event| {
+      // 应用退出：最后兜底，确保 sidecar 进程树被杀干净
+      match event {
+        tauri::RunEvent::ExitRequested { .. } => {
+          kill_backend(app);
+        }
+        tauri::RunEvent::Exit => {
+          kill_backend(app);
+        }
+        _ => {}
+      }
+    });
+}
+
+/// 杀掉后端 sidecar 及其所有子进程（llama-server 等）。
+///
+/// 先记下 sidecar 的 PID，用 Windows taskkill /T 杀整个进程树，
+/// 再 Child::kill 兜底。这样即使 sidecar 启动了 llama-server 子进程
+/// 也会被一起杀掉，不会残留锁文件。
+fn kill_backend(app: &tauri::AppHandle) {
+  let state: tauri::State<BackendProcess> = app.state();
+  let child = { state.0.lock().unwrap().take() };
+  if let Some(mut c) = child {
+    let pid = c.id();
+    // Windows：taskkill /T /F 杀进程树（含所有子进程如 llama-server）
+    #[cfg(target_os = "windows")]
+    {
+      let _ = Command::new("taskkill")
+        .args(["/T", "/F", "/PID", &pid.to_string()])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+    }
+    // Mac/Linux：kill 整个进程组
+    #[cfg(not(target_os = "windows"))]
+    {
+      let _ = Command::new("kill")
+        .args(["-9", &pid.to_string()])
+        .status();
+    }
+    // 兜底：Rust 的 kill（可能已无效，忽略错误）
+    let _ = c.kill();
+  }
 }
 
 /// 启动 Python 后端。
 ///
-/// 打包后：sidecar `knowledge-backend.exe` 被 externalBin 打进包，与主 exe 同目录。
+/// 打包后：sidecar `knowledge-backend.exe` 作为 resource 打进包，与主 exe 同目录。
 ///   用 current_exe() 定位同目录的 sidecar。
 /// 开发时：调 backend/.venv311 的 uvicorn。
 fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
-  // 打包模式：sidecar 与主 exe 同目录（externalBin 打包后放这里）
+  // 打包模式：sidecar 与主 exe 同目录（resources 打包后放这里）
   if let Ok(exe) = std::env::current_exe() {
     let sidecar = exe.with_file_name(if cfg!(target_os = "windows") {
       "knowledge-backend.exe"
@@ -61,8 +103,24 @@ fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
       "knowledge-backend"
     });
     if sidecar.exists() {
-      if let Ok(child) = Command::new(&sidecar).spawn() {
-        return Some(child);
+      // Windows：用 CREATE_NEW_PROCESS_GROUP 让 sidecar 及其子进程成独立进程组，
+      // 便于 taskkill /T 杀整树。不DETACH，仍随父进程退出。
+      #[cfg(target_os = "windows")]
+      {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NEW_PROCESS_GROUP = 0x00000200
+        if let Ok(child) = Command::new(&sidecar)
+          .creation_flags(0x00000200)
+          .spawn()
+        {
+          return Some(child);
+        }
+      }
+      #[cfg(not(target_os = "windows"))]
+      {
+        if let Ok(child) = Command::new(&sidecar).spawn() {
+          return Some(child);
+        }
       }
     }
   }

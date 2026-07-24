@@ -81,12 +81,63 @@ def _redirect_stdio():
 _setup_portable_paths()
 _redirect_stdio()
 
+import threading  # noqa: E402
 import uvicorn  # noqa: E402
 
 from app.main import app  # noqa: E402
 
 
+def _watch_parent():
+    """后台线程：父进程（Tauri 主程序）退出则自杀，防孤儿进程。
+
+    场景：用户用任务管理器杀主程序、或主程序崩溃，on_window_event 不触发，
+    sidecar 会成孤儿锁住 knowledge-backend.exe，导致下次安装 "can't write"。
+    定期检查父进程 PID 是否还存活，没了就 os._exit 直接退出。
+    """
+    if not getattr(sys, "frozen", False):
+        return  # 开发模式不监控
+    import os
+    parent_pid = os.getppid()
+    while True:
+        import time
+        time.sleep(5)
+        if not _pid_exists(parent_pid):
+            break
+    # 父进程没了，强制退出（不走 atexit，快速终止，避免锁文件）
+    os._exit(0)
+
+
+def _pid_exists(pid: int) -> bool:
+    """检查指定 PID 的进程是否还存活。跨平台。
+
+    Windows 上 os.kill(pid, 0) 对非自身进程会抛 PermissionError（不代表不存在），
+    所以用 ctypes.OpenProcess 判断。
+    """
+    import os
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        import ctypes
+        # PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        kernel32 = ctypes.windll.kernel32
+        SYNCHRONIZE = 0x00100000
+        h = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+        if not h:
+            return False  # 打不开=进程不存在或无权限（孤儿场景即不存在）
+        kernel32.CloseHandle(h)
+        return True
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+
+
 def main():
+    # 启动父进程监控线程（防孤儿）
+    t = threading.Thread(target=_watch_parent, daemon=True)
+    t.start()
     # 用显式 log_config 而非默认：禁用 access log 的 isatty 判断，
     # 输出全走 stdout（已重定向到文件），避免无控制台模式再次踩坑。
     uvicorn.run(
