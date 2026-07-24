@@ -20,14 +20,19 @@ def main():
         sys.executable, "-m", "PyInstaller",
         "--onefile",  # 单文件，便于 sidecar 分发
         "--name", "knowledge-backend",
-        # 隐藏控制台窗口（Windows）；服务类程序不需要 GUI
+        # 隐藏控制台窗口（Windows）；服务类程序不需要 GUI。
+        # 无控制台下 sys.stdout/stderr 为 None，sidecar_main._redirect_stdio 会重定向到文件。
         "--noconsole" if platform.system() == "Windows" else "--console",
+        "--clean",
         # 把 app 包打进去（PyInstaller 有时漏掉）
         "--collect-all", "app",
-        # sentence-transformers/torch 的数据文件要带上
-        "--collect-submodules", "sentence_transformers",
-        "--collect-data", "sentence_transformers",
-        # 入口：uvicorn 形式启动，用 __main__.py
+        # 排除没直接用到的重依赖（来自 sentence_transformers 的可选依赖），
+        # 减小体积 + 避免 PyInstaller 分析 sklearn/tensorflow hook 时崩溃
+        "--exclude-module", "tensorflow",
+        "--exclude-module", "keras",
+        "--exclude-module", "sklearn",
+        "--exclude-module", "scipy",
+        # 入口
         str(ROOT / "sidecar_main.py"),
         "--distpath", str(ROOT / "dist"),
         "--workpath", str(ROOT / "build"),

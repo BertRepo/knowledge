@@ -9,7 +9,9 @@ Tauri 拉起这个可执行文件时，它用 uvicorn 启动 FastAPI app。
   写入 LOCAL_LLM_* 环境变量，让 providers.py 用绝对路径启动。
 - .env 不随包分发（含密钥），默认值在这里给；用户在配置页改后存 app data 目录。
 
-llama-server + GGUF 模型不打进 PyInstaller exe（太大），作为 Tauri resources 随包。
+无控制台模式（--noconsole）注意事项：
+- 此时 sys.stdout/sys.stderr 是 None，uvicorn 的日志 formatter 调 isatty() 会崩。
+- 必须把 stdout/stderr 重定向到文件（非 None），顺便留日志方便排查。
 """
 import os
 import sys
@@ -44,7 +46,40 @@ def _setup_portable_paths():
     os.environ.setdefault("LLM_PROVIDER", "local")
 
 
+def _redirect_stdio():
+    """无控制台模式下把 stdout/stderr 重定向到日志文件。
+
+    PyInstaller --noconsole 打包后 sys.stdout/sys.stderr 是 None，
+    uvicorn 日志 formatter 调 isatty() 会抛 AttributeError。重定向到文件
+    既解决崩溃，又留日志（装在 ~/AppData/Local/知识聚合器/sidecar.log）。
+    """
+    if not getattr(sys, "frozen", False):
+        return  # 开发模式有控制台，不用重定向
+    if sys.stdout is not None and sys.stderr is not None:
+        return  # 有控制台（如从命令行启动 exe），不用重定向
+
+    # 日志放 exe 同目录（安装目录），方便用户提交排查
+    base = Path(sys.executable).resolve().parent
+    log_path = base / "sidecar.log"
+    try:
+        f = open(log_path, "a", encoding="utf-8", buffering=1)
+        if sys.stdout is None:
+            sys.stdout = f
+        if sys.stderr is None:
+            sys.stderr = f
+    except Exception:
+        # 万一开文件失败，兜底用 devnull，至少不是 None
+        import atexit
+        devnull = open(os.devnull, "w")
+        if sys.stdout is None:
+            sys.stdout = devnull
+        if sys.stderr is None:
+            sys.stderr = devnull
+        atexit.register(devnull.close)
+
+
 _setup_portable_paths()
+_redirect_stdio()
 
 import uvicorn  # noqa: E402
 
@@ -52,7 +87,15 @@ from app.main import app  # noqa: E402
 
 
 def main():
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    # 用显式 log_config 而非默认：禁用 access log 的 isatty 判断，
+    # 输出全走 stdout（已重定向到文件），避免无控制台模式再次踩坑。
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=8000,
+        log_level="info",
+        access_log=False,  # 无控制台模式不开 access log，减少日志量
+    )
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ pub fn run() {
         )?;
       }
 
-      let child = start_backend();
+      let child = start_backend(app.handle());
       let state: tauri::State<BackendProcess> = app.state();
       *state.0.lock().unwrap() = child;
 
@@ -49,18 +49,22 @@ pub fn run() {
 
 /// 启动 Python 后端。
 ///
-/// 打包后：调同目录下的 sidecar `knowledge-backend`。
+/// 打包后：sidecar `knowledge-backend.exe` 被 externalBin 打进包，与主 exe 同目录。
+///   用 current_exe() 定位同目录的 sidecar。
 /// 开发时：调 backend/.venv311 的 uvicorn。
-fn start_backend() -> Option<Child> {
-  let sidecar = if cfg!(target_os = "windows") {
-    "knowledge-backend.exe"
-  } else {
-    "knowledge-backend"
-  };
-
-  // 打包模式：sidecar 可执行文件（Tauri 会放到可被 PATH 找到的位置）
-  if let Ok(child) = Command::new(sidecar).spawn() {
-    return Some(child);
+fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
+  // 打包模式：sidecar 与主 exe 同目录（externalBin 打包后放这里）
+  if let Ok(exe) = std::env::current_exe() {
+    let sidecar = exe.with_file_name(if cfg!(target_os = "windows") {
+      "knowledge-backend.exe"
+    } else {
+      "knowledge-backend"
+    });
+    if sidecar.exists() {
+      if let Ok(child) = Command::new(&sidecar).spawn() {
+        return Some(child);
+      }
+    }
   }
 
   // 开发模式：调 venv311 的 uvicorn

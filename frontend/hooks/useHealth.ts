@@ -31,12 +31,45 @@ export function useHealth(autoMs = 15000) {
 
   useEffect(() => {
     // 数据获取 hook 的标准模式：effect 里触发异步刷新，setState 在 await 之后的回调里执行。
+    // 首次启动时后端 sidecar 可能还在启动（PyInstaller 解压要几秒），
+    // 失败就快速重试几次，而不是让用户干等 15s 看到「后端未连接」。
+    let cancelled = false;
+    let retries = 0;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    refresh(); // 首次立即检查
+    const firstCheck = async () => {
+      while (retries < 10 && !cancelled) {
+        try {
+          const h = await getHealth();
+          if (!cancelled) {
+            setHealth(h);
+            setError(null);
+            setLoading(false);
+          }
+          return; // 成功，退出重试
+        } catch {
+          retries++;
+          if (cancelled) return;
+          if (retries >= 10) {
+            setError("后端启动超时，请稍候或检查安装");
+            setLoading(false);
+            return;
+          }
+          // 2s 后重试（sidecar 启动中）
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+    };
+    firstCheck();
     if (autoMs > 0) {
       const id = setInterval(refresh, autoMs); // 定时轮询
-      return () => clearInterval(id); // 卸载时清理定时器，避免内存泄漏
+      return () => {
+        cancelled = true;
+        clearInterval(id);
+      };
     }
+    return () => {
+      cancelled = true;
+    };
   }, [refresh, autoMs]);
 
   return { health, error, loading, refresh };
