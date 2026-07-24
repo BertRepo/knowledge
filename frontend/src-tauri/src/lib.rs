@@ -95,21 +95,23 @@ fn kill_backend(app: &tauri::AppHandle) {
 ///   用 current_exe() 定位同目录的 sidecar。
 /// 开发时：调 backend/.venv311 的 uvicorn。
 fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
-  // 打包模式：sidecar 与主 exe 同目录（resources 打包后放这里）
+  // 打包模式：sidecar 是 onedir 目录（knowledge-backend/knowledge-backend.exe），
+  // 作为 resource 与主 exe 同目录
   if let Ok(exe) = std::env::current_exe() {
-    let sidecar = exe.with_file_name(if cfg!(target_os = "windows") {
+    let sidecar = exe.with_file_name("knowledge-backend").join(if cfg!(target_os = "windows") {
       "knowledge-backend.exe"
     } else {
       "knowledge-backend"
     });
     if sidecar.exists() {
       // Windows：用 CREATE_NEW_PROCESS_GROUP 让 sidecar 及其子进程成独立进程组，
-      // 便于 taskkill /T 杀整树。不DETACH，仍随父进程退出。
+      // 便于 taskkill /T 杀整树。工作目录设为 sidecar 所在目录，便于它找 local-model。
       #[cfg(target_os = "windows")]
       {
         use std::os::windows::process::CommandExt;
         // CREATE_NEW_PROCESS_GROUP = 0x00000200
         if let Ok(child) = Command::new(&sidecar)
+          .current_dir(sidecar.parent().unwrap())
           .creation_flags(0x00000200)
           .spawn()
         {
@@ -118,7 +120,10 @@ fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
       }
       #[cfg(not(target_os = "windows"))]
       {
-        if let Ok(child) = Command::new(&sidecar).spawn() {
+        if let Ok(child) = Command::new(&sidecar)
+          .current_dir(sidecar.parent().unwrap())
+          .spawn()
+        {
           return Some(child);
         }
       }

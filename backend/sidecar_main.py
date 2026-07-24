@@ -26,21 +26,28 @@ def _setup_portable_paths():
     if not getattr(sys, "frozen", False):
         return  # 开发模式，用 .env
 
-    # PyInstaller 打包：exe 所在目录
+    # PyInstaller 打包：exe 所在目录（onedir 模式下是 knowledge-backend/）
+    # local-model 在主 exe 目录（knowledge-backend 的上一级），所以往上找
     base = Path(sys.executable).resolve().parent
 
     # 默认笔记目录：用户 home 下（用户可在配置页改）
     os.environ.setdefault("NOTES_DIR", str(Path.home() / "knowledge-notes"))
 
-    # 本地模型：从 exe 同级目录的 local-model/ 找（Tauri resources 放这里）
-    local_model = base / "local-model"
-    server = local_model / "llama-server" / "llama-server.exe"
-    if server.exists():
-        os.environ.setdefault("LOCAL_LLM_SERVER_PATH", str(server))
-    # 找任意 gguf
-    gguf = next(local_model.glob("*.gguf"), None)
-    if gguf:
-        os.environ.setdefault("LOCAL_LLM_MODEL_PATH", str(gguf))
+    # 本地模型：onedir 下 sidecar exe 在 knowledge-backend/，local-model 在其上一级
+    # （主 Tauri exe 同目录）。依次找 base/local-model 和 base/../local-model
+    local_model = None
+    for cand in (base / "local-model", base.parent / "local-model"):
+        if cand.is_dir():
+            local_model = cand
+            break
+    if local_model:
+        server = local_model / "llama-server" / "llama-server.exe"
+        if server.exists():
+            os.environ.setdefault("LOCAL_LLM_SERVER_PATH", str(server))
+        # 找任意 gguf
+        gguf = next(local_model.glob("*.gguf"), None)
+        if gguf:
+            os.environ.setdefault("LOCAL_LLM_MODEL_PATH", str(gguf))
 
     # 打包后默认用本地模型（离线优先），用户可切 online
     os.environ.setdefault("LLM_PROVIDER", "local")
@@ -78,8 +85,33 @@ def _redirect_stdio():
         atexit.register(devnull.close)
 
 
+def _setup_torch_dll_path():
+    """把 torch/lib 加到 DLL 搜索路径，解决 c10.dll 初始化失败（WinError 1114）。
+
+    PyInstaller 打包后 torch 的 DLL 在 _internal/torch/lib/，但运行时默认不搜那里，
+    导致 c10.dll 依赖的 libiomp5md.dll 等找不到或加载冲突。用 add_dll_directory
+    显式指定，并放最前面避免与系统其他 libiomp 冲突。
+    """
+    if not getattr(sys, "frozen", False):
+        return  # 开发模式 venv 自带正确路径
+    import os
+    base = Path(sys.executable).resolve().parent
+    # onedir: _internal/torch/lib；onefile: 解压临时目录
+    for sub in ("_internal/torch/lib", "torch/lib"):
+        dll_dir = base / sub
+        if dll_dir.is_dir():
+            try:
+                os.add_dll_directory(str(dll_dir))
+            except (OSError, AttributeError):
+                pass
+            # 也加到 PATH 兜底（部分 DLL 加载走 PATH）
+            os.environ["PATH"] = str(dll_dir) + os.pathsep + os.environ.get("PATH", "")
+            break
+
+
 _setup_portable_paths()
 _redirect_stdio()
+_setup_torch_dll_path()
 
 import threading  # noqa: E402
 import uvicorn  # noqa: E402
