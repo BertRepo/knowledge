@@ -8,6 +8,7 @@ interface UrlFormProps {
   loading: boolean;
 }
 
+/** 链接输入框：C 端主入口，粘贴链接即可生成笔记。 */
 export function UrlForm({ onProcess, loading }: UrlFormProps) {
   const [url, setUrl] = useState("");
   const [customTitle, setCustomTitle] = useState("");
@@ -23,7 +24,7 @@ export function UrlForm({ onProcess, loading }: UrlFormProps) {
     try {
       new URL(trimmed);
     } catch {
-      setLocalError("链接格式不正确");
+      setLocalError("链接格式不正确，请输入完整网址（含 https://）");
       return;
     }
     setLocalError(null);
@@ -31,25 +32,25 @@ export function UrlForm({ onProcess, loading }: UrlFormProps) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3">
+    <form onSubmit={submit} className="space-y-2.5">
       <div className="flex gap-2">
         <input
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="粘贴网页链接 https://…"
-          className="h-10 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+          placeholder="粘贴链接，生成笔记…"
+          className="apple-input h-11 flex-1 px-4 text-sm outline-none"
         />
-        <Button type="submit" loading={loading}>
-          分析并保存
+        <Button type="submit" loading={loading} className="h-11 px-6">
+          {loading ? "生成中" : "生成笔记"}
         </Button>
       </div>
       <input
         type="text"
         value={customTitle}
         onChange={(e) => setCustomTitle(e.target.value)}
-        placeholder="可选：自定义笔记标题（留空由 AI 生成）"
-        className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+        placeholder="标题（可选，留空 AI 自动生成）"
+        className="apple-input h-9 w-full px-3.5 text-sm outline-none"
       />
       {localError && <ErrorBanner message={localError} onDismiss={() => setLocalError(null)} />}
     </form>

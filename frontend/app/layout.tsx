@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-const title = "知识聚合器 · 网页 -> AI 摘要 -> Markdown 笔记";
+const title = "知识助手 · 把网页变成你的知识网络";
 const description =
-  "粘贴网页链接，AI 自动摘要并抽取标签，写入 Markdown 笔记，智能建议关联已有笔记，用 [[wikilink]] 逐步构建你的知识网络。支持领域 Skills、Mermaid 图解、Docker 部署。";
+  "粘贴链接，AI 自动生成结构化笔记，智能关联已有笔记，用双向链接构建你的个人知识网络。";
 
 export const metadata: Metadata = {
   title: { default: title, template: "%s · 知识聚合器" },

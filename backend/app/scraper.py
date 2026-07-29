@@ -12,7 +12,6 @@ from dataclasses import dataclass
 import httpx
 from bs4 import BeautifulSoup
 
-from .config import get_settings
 
 # trafilatura 是可选依赖：装了就用它的高质量抽取，没装就走 bs4 兜底。
 try:  # 可选依赖，装了效果更好
@@ -54,10 +53,9 @@ def fetch_html(url: str) -> tuple[str, str]:
     follow_redirects=True 让 httpx 自动跟随重定向，最终 URL 可能与入参不同。
     编码探测优先用响应头里的声明，查不到再回退 utf-8。
     """
-    settings = get_settings()
     with httpx.Client(
         headers=HEADERS,
-        timeout=settings.ai_timeout,
+        timeout=30.0,  # 抓取网页超时独立于 LLM 超时，30s 足够
         follow_redirects=True,
     ) as client:
         resp = client.get(url)

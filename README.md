@@ -1,11 +1,12 @@
-# 知识聚合器
+# 知识助手
 
-粘贴网页链接 -> 内部 AI 摘要 -> 写入 Markdown 笔记 -> AI 建议关联已有笔记 -> 手动确认 `[[wikilink]]`，逐步搭起知识网络。
+粘贴网页链接 -> AI 自动生成结构化笔记 -> 智能关联已有笔记 -> 用双向链接逐步搭起知识网络。
 
-- **领域 Skills**：自动识别内容领域（技术/产品/金融/学术/教程/资讯…），按领域套用不同摘要结构与 Mermaid 图解（流程图/脑图）
-- **后端**：Python 3.8 + FastAPI（爬取 / 调用内部 AI / 读写笔记库 / 会话快照）
-- **前端**：Next.js 16 + React 19 + Tailwind v4（本地交互页面 + API 配置页）
-- **存储**：纯 Markdown 文件（兼容 Obsidian / Logseq / VSCode，可走 iCloud / Git 同步）
+- **领域感知**：自动识别内容领域（技术/产品/金融/学术/教程/资讯…），按领域套用不同摘要结构与 Mermaid 图解
+- **后端**：Python 3.11 + FastAPI（爬取 / AI 分析 / 读写笔记 / 向量检索 / 会话快照）
+- **前端**：Next.js 16 + React 19 + Tailwind v4（工作台 + 笔记库两页式）
+- **存储**：纯 Markdown 文件（兼容 Obsidian / Logseq / VSCode，可走 iCloud 同步）
+- **AI**：支持在线 API（Anthropic/OpenAI 兼容）与本地离线模型（llama.cpp）切换
 
 ---
 

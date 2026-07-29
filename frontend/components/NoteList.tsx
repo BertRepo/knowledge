@@ -15,7 +15,7 @@ interface NoteListProps {
 export function NoteList({ notes, selected, onSelect, loading, onRefresh }: NoteListProps) {
   return (
     <Card
-      title={`笔记库 (${notes.length})`}
+      title={`全部笔记 (${notes.length})`}
       actions={
         <Button variant="ghost" size="sm" onClick={onRefresh} loading={loading}>
           刷新

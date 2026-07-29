@@ -1,14 +1,26 @@
 @import "tailwindcss";
 
+/* ===== 苹果风格设计系统 =====
+ * 核心特征：大量留白、柔和圆角、细腻阴影、半透明毛玻璃、克制的色彩。
+ * 字体优先 SF Pro / PingFang（苹方），中文用苹方，英文用 SF。
+ */
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
+  --background: #f5f5f7;          /* 苹果标志性的浅灰背景 */
+  --foreground: #1d1d1f;           /* 近黑文字，非纯黑 */
+  --card-bg: #ffffff;
+  --card-border: rgba(0, 0, 0, 0.06);
+  --accent: #0071e3;               /* 苹果蓝 */
+  --accent-hover: #0077ed;
+  --radius: 14px;                  /* 苹果式大圆角 */
+  --radius-sm: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-hover: 0 2px 8px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.06);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+  --font-sans: -apple-system, "SF Pro Text", "SF Pro Display", system-ui,
     "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
 }
 
@@ -16,13 +28,77 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;  /* 苹果式字体平滑 */
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;              /* 苹果式字距收紧 */
 }
 
-/* Markdown rendering for AI summaries and note bodies. Kept here so the
-   Markdown component stays purely presentational. */
+/* ===== 通用卡片：毛玻璃 + 大圆角 + 细阴影 ===== */
+.apple-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: box-shadow 0.2s ease;
+}
+.apple-card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+/* ===== 按钮：苹果式胶囊按钮 ===== */
+.apple-btn {
+  border-radius: 980px;          /* 全圆角胶囊 */
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+.apple-btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.apple-btn-primary:hover {
+  background: var(--accent-hover);
+}
+.apple-btn-ghost {
+  background: transparent;
+  color: var(--accent);
+}
+.apple-btn-ghost:hover {
+  background: rgba(0, 113, 227, 0.06);
+}
+
+/* ===== 输入框：苹果式无边框感 + 大圆角 ===== */
+.apple-input {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+.apple-input:focus {
+  background: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
+}
+
+/* ===== 导航 segmented control（苹果分段控件） ===== */
+.segmented {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 9px;
+  padding: 2px;
+}
+.segmented button {
+  border-radius: 7px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.segmented button.active {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* ===== Markdown 渲染 ===== */
 .markdown {
-  font-size: 0.875rem;
-  line-height: 1.7;
+  font-size: 0.9rem;
+  line-height: 1.75;
   color: inherit;
   word-break: break-word;
 }
@@ -30,39 +106,71 @@ body {
 .markdown h2,
 .markdown h3 {
   font-weight: 600;
-  margin: 0.75em 0 0.35em;
+  margin: 0.8em 0 0.4em;
   line-height: 1.3;
+  letter-spacing: -0.02em;
 }
-.markdown h1 { font-size: 1.15rem; }
-.markdown h2 { font-size: 1.05rem; }
-.markdown h3 { font-size: 0.95rem; }
-.markdown p { margin: 0.5em 0; }
+.markdown h1 { font-size: 1.2rem; }
+.markdown h2 { font-size: 1.08rem; }
+.markdown h3 { font-size: 0.98rem; }
+.markdown p { margin: 0.6em 0; }
 .markdown ul,
-.markdown ol { margin: 0.5em 0; padding-left: 1.4em; }
-.markdown li { margin: 0.2em 0; }
-.markdown a { color: #2563eb; text-decoration: underline; }
+.markdown ol { margin: 0.6em 0; padding-left: 1.5em; }
+.markdown li { margin: 0.25em 0; }
+.markdown a { color: var(--accent); text-decoration: none; }
+.markdown a:hover { text-decoration: underline; }
 .markdown code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85em;
-  background: rgba(120, 120, 120, 0.15);
-  padding: 0.1em 0.35em;
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.15em 0.4em;
+  border-radius: 5px;
 }
 .markdown pre {
-  background: rgba(120, 120, 120, 0.12);
-  padding: 0.75em;
-  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.9em;
+  border-radius: var(--radius-sm);
   overflow-x: auto;
-  margin: 0.5em 0;
+  margin: 0.6em 0;
 }
 .markdown pre code { background: none; padding: 0; }
 .markdown blockquote {
-  border-left: 3px solid rgba(120, 120, 120, 0.4);
-  padding-left: 0.9em;
-  margin: 0.5em 0;
-  color: rgba(120, 120, 120, 0.9);
+  border-left: 3px solid var(--accent);
+  padding-left: 1em;
+  margin: 0.6em 0;
+  color: rgba(0, 0, 0, 0.55);
 }
-.markdown hr { border: none; border-top: 1px solid rgba(120, 120, 120, 0.25); margin: 0.8em 0; }
-.markdown table { border-collapse: collapse; margin: 0.5em 0; }
+.markdown hr { border: none; border-top: 1px solid rgba(0,0,0,0.08); margin: 1em 0; }
+.markdown table { border-collapse: collapse; margin: 0.6em 0; }
 .markdown th,
-.markdown td { border: 1px solid rgba(120, 120, 120, 0.25); padding: 0.3em 0.6em; }
+.markdown td { border: 1px solid rgba(0,0,0,0.08); padding: 0.35em 0.7em; }
+
+/* ===== 滚动条：苹果式细滚动条 ===== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.25); }
+
+/* ===== 流式打字光标 ===== */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.typing-cursor::after {
+  content: "▍";
+  animation: blink 1s infinite;
+  color: var(--accent);
+  margin-left: 1px;
+}
+
+/* ===== 渐入动画 ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up {
+  animation: fadeInUp 0.3s ease;
+}

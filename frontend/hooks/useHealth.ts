@@ -35,7 +35,6 @@ export function useHealth(autoMs = 15000) {
     // 失败就快速重试几次，而不是让用户干等 15s 看到「后端未连接」。
     let cancelled = false;
     let retries = 0;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     const firstCheck = async () => {
       while (retries < 10 && !cancelled) {
         try {

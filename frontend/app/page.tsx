@@ -220,40 +220,32 @@ export default function Page() {
   const chatNote = result?.note_filename ?? viewingNote ?? null;
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-4 py-6">
-      <header className="flex flex-col gap-2">
+    <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-5 px-5 py-6">
+      <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-            {"知识聚合器 · 做你的在线笔记助手"}
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+            知识助手
           </h1>
-          <div className="flex items-center gap-4">
-            {/* 页面切换：工作台 / 笔记库 */}
-            <nav className="flex gap-1 text-sm">
+          <div className="flex items-center gap-3">
+            {/* 页面切换：苹果分段控件风格 */}
+            <nav className="segmented flex gap-0.5 text-sm">
               <button
                 type="button"
                 onClick={() => setMode("workbench")}
-                className={`rounded-md px-2.5 py-1 transition-colors ${
-                  mode === "workbench"
-                    ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
+                className={`px-3.5 py-1.5 ${mode === "workbench" ? "active" : "text-zinc-500"}`}
               >
                 工作台
               </button>
               <button
                 type="button"
                 onClick={() => setMode("vault")}
-                className={`rounded-md px-2.5 py-1 transition-colors ${
-                  mode === "vault"
-                    ? "bg-zinc-900 text-zinc-50 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
+                className={`px-3.5 py-1.5 ${mode === "vault" ? "active" : "text-zinc-500"}`}
               >
                 笔记库
               </button>
             </nav>
-            <Link href="/settings" className="text-sm text-zinc-500 underline hover:text-zinc-700 dark:hover:text-zinc-300">
-              API 配置
+            <Link href="/settings" className="apple-btn apple-btn-ghost px-3 py-1.5 text-sm">
+              设置
             </Link>
           </div>
         </div>
@@ -295,8 +287,14 @@ export default function Page() {
                 />
               </>
             ) : (
-              <div className="rounded-lg border border-dashed border-zinc-300 px-6 py-12 text-center text-sm text-zinc-400 dark:border-zinc-700">
-                粘贴一个网页链接开始分析，或切到「笔记库」查看知识图谱。
+              <div className="apple-card fade-in-up flex flex-col items-center gap-3 px-6 py-16 text-center">
+                <div className="text-4xl">📎</div>
+                <p className="text-base font-medium text-zinc-700 dark:text-zinc-200">
+                  粘贴链接，一键生成笔记
+                </p>
+                <p className="max-w-sm text-sm text-zinc-400">
+                  把任意网页变成结构化笔记，AI 自动摘要、打标签、找关联，帮你把碎片信息连成知识网络。
+                </p>
               </div>
             )}
           </div>
@@ -348,7 +346,7 @@ export default function Page() {
       )}
 
       <footer className="text-center text-xs text-zinc-400">
-        分析结果写入笔记目录（可在 .env 配置为 iCloud/Git 同步路径）· 会话快照存于系统临时目录，可删除
+        笔记保存在本地，可同步至 iCloud · 会话记录可随时清除
       </footer>
     </div>
   );

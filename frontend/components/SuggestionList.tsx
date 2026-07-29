@@ -59,17 +59,17 @@ export function SuggestionList({
 
   return (
     <Card
-      title="AI 建议关联"
+      title="相关笔记"
       actions={
         <div className="flex items-center gap-1.5">
           {onSemanticRelink && (
             <Button variant="ghost" size="sm" onClick={onSemanticRelink} loading={relinkLoading}>
-              语义召回
+              智能匹配
             </Button>
           )}
           {onRelink && (
             <Button variant="ghost" size="sm" onClick={onRelink} loading={relinkLoading}>
-              重新建议
+              重新推荐
             </Button>
           )}
         </div>
@@ -77,7 +77,7 @@ export function SuggestionList({
     >
       {suggestions.length === 0 ? (
         <p className="text-sm text-zinc-500">
-          {noteFilename ? "暂无关联建议，可稍后点“重新建议”，或手动添加链接。" : "分析后这里会显示与已有笔记的关联建议。"}
+          {noteFilename ? "暂无相关笔记，试试「智能匹配」或手动添加。" : "分析完成后，这里会推荐相关笔记。"}
         </p>
       ) : (
         <ul className="space-y-2">
@@ -114,7 +114,7 @@ export function SuggestionList({
       {suggestions.length > 0 && (
         <div className="mt-3 flex items-center gap-3">
           <Button size="sm" onClick={confirm} loading={busy} disabled={selected.size === 0}>
-            确认关联{selected.size > 0 ? ` (${selected.size})` : ""}
+            关联{selected.size > 0 ? ` (${selected.size})` : ""}
           </Button>
           {msg && <span className="text-xs text-zinc-500">{msg}</span>}
         </div>

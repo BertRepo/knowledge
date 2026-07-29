@@ -20,7 +20,7 @@ export function SessionHistory({
 }: SessionHistoryProps) {
   return (
     <Card
-      title={`会话历史 (${sessions.length})`}
+      title={`历史记录 (${sessions.length})`}
       actions={
         <Button variant="danger" size="sm" onClick={onClear} disabled={sessions.length === 0}>
           清空
@@ -28,10 +28,10 @@ export function SessionHistory({
       }
     >
       <p className="mb-2 text-xs text-zinc-400">
-        每次分析的快照，存在系统临时目录，可随时删除，不影响笔记库。
+        最近生成的笔记，可随时清除，不影响已保存的笔记。
       </p>
       {sessions.length === 0 ? (
-        <p className="text-sm text-zinc-500">{loading ? "加载中…" : "暂无会话。"}</p>
+        <p className="text-sm text-zinc-500">{loading ? "加载中…" : "暂无记录。"}</p>
       ) : (
         <ul className="max-h-48 space-y-1 overflow-y-auto pr-1">
           {sessions.map((s) => (

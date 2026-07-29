@@ -10,18 +10,18 @@ import { Spinner } from "./Spinner";
 type Variant = "primary" | "ghost" | "danger";
 type Size = "sm" | "md";
 
-// 变体 -> className 映射：新增一个风格只需加一行，不用改组件逻辑
+// 变体 -> className 映射：苹果风格
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-zinc-900 text-zinc-50 hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300",
+    "bg-[#0071e3] text-white hover:bg-[#0077ed] shadow-sm",
   ghost:
-    "border border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800",
-  danger: "bg-red-600 text-white hover:bg-red-500",
+    "bg-black/[0.04] text-[#0071e3] hover:bg-black/[0.07]",
+  danger: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "h-8 px-3 text-sm",
-  md: "h-10 px-4 text-sm",
+  sm: "h-8 px-3.5 text-sm",
+  md: "h-10 px-5 text-sm",
 };
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -40,7 +40,7 @@ export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
     <button
       ref={ref}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`apple-btn inline-flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-40 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...rest}
     >
       {loading && <Spinner className="h-4 w-4" />}

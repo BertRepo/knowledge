@@ -13,7 +13,7 @@ interface ManualLinkInputProps {
   onLink: (target: string) => Promise<string[]>;
 }
 
-export function ManualLinkInput({ noteFilename, candidates, onLink }: ManualLinkInputProps) {
+export function ManualLinkInput({ candidates, onLink }: ManualLinkInputProps) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -47,8 +47,8 @@ export function ManualLinkInput({ noteFilename, candidates, onLink }: ManualLink
           list="note-candidates"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={`输入要关联的笔记名（如 ${noteFilename || "…"}）`}
-          className="h-9 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+          placeholder={`搜索要关联的笔记…`}
+          className="apple-input h-9 flex-1 px-3.5 text-sm outline-none"
         />
         <Button size="sm" type="submit" loading={busy} disabled={!value.trim()}>
           添加链接

@@ -23,12 +23,12 @@ export function StatusBar({ health, loading, error }: StatusBarProps) {
         <>
           <Tag className={health.llm_configured ? "" : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}>
             {health.llm_configured
-              ? (health.llm_provider === "local" ? "本地模型" : "在线 API")
-              : "LLM 未配置"}
+              ? (health.llm_provider === "local" ? "本地 AI" : "在线 AI")
+              : "AI 未配置"}
           </Tag>
           {health.llm_provider === "local" && (
             <Tag className={health.local_ready ? "" : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}>
-              {health.local_ready ? "llama-server 运行中" : "本地模型未启动"}
+              {health.local_ready ? "本地 AI 运行中" : "本地 AI 未启动"}
             </Tag>
           )}
           <Tag>{health.llm_model}</Tag>

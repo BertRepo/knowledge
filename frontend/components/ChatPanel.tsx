@@ -87,9 +87,9 @@ export function ChatPanel({ noteFilename }: ChatPanelProps) {
     <div className="flex h-full flex-col">
       {/* 标题栏 */}
       <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-2.5 dark:border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">对话追问</h2>
+        <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">AI 追问</h2>
         <span className="text-xs text-zinc-400">
-          {noteFilename ? `基于《${noteFilename}》` : "分析/打开笔记后可追问"}
+          {noteFilename ? `基于《${noteFilename}》` : "打开笔记后可追问"}
         </span>
       </div>
 
@@ -98,8 +98,8 @@ export function ChatPanel({ noteFilename }: ChatPanelProps) {
         {messages.length === 0 && !streamingText ? (
           <p className="py-8 text-center text-sm text-zinc-400">
             {noteFilename
-              ? "问点什么吧，AI 会结合这篇笔记及其关联笔记回答。"
-              : "先分析一个网页或打开一篇笔记，再来这里追问。"}
+              ? "问点什么吧，AI 会结合这篇笔记回答你。"
+              : "先打开一篇笔记，再来这里追问。"}
           </p>
         ) : null}
 
@@ -125,9 +125,9 @@ export function ChatPanel({ noteFilename }: ChatPanelProps) {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={disabled ? "请先选择一篇笔记" : "输入追问…（回车发送）"}
+          placeholder={disabled ? "请先打开一篇笔记" : "输入问题…"}
           disabled={disabled || streaming}
-          className="h-9 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900"
+          className="apple-input h-9 flex-1 px-3 text-sm outline-none"
         />
         <button
           type="submit"

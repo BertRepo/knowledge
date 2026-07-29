@@ -181,6 +181,22 @@ class SettingsUpdate(BaseModel):
     embedding_model: Optional[str] = None
 
 
+class FetchModelsRequest(BaseModel):
+    """拉取可用模型列表的请求体：用配置页表单当前值（可能尚未保存）去探测。
+
+    各字段留空则回退到已保存配置，方便用户先填地址/密钥、不必保存即可拉取。
+    """
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None        # 留空 = 用已保存的 key
+    api_format: Optional[str] = None
+    anthropic_version: Optional[str] = None
+
+
+class ModelsResponse(BaseModel):
+    """拉取到的可用模型 id 列表。"""
+    models: list[str]
+
+
 # ---------- 知识图谱 ----------
 class GraphNode(BaseModel):
     id: str  # 笔记文件名主干，作为图节点 id

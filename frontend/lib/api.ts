@@ -5,9 +5,11 @@ import type {
   ChatMessage,
   ClearResponse,
   EmbeddingsStatus,
+  FetchModelsRequest,
   GraphData,
   HealthStatus,
   LinkResponse,
+  ModelsResponse,
   NoteFull,
   NoteMeta,
   ProcessResponse,
@@ -263,6 +265,10 @@ export const getSettings = () => apiFetch<SettingsView>("/api/settings");
 
 export const updateSettings = (body: SettingsUpdate) =>
   apiFetch<SettingsView>("/api/settings", { method: "PUT", body: JSON.stringify(body) });
+
+// 拉取在线 API 的可用模型列表（配置页「拉取模型」按钮用）
+export const fetchModels = (body: FetchModelsRequest) =>
+  postJson<ModelsResponse>("/api/settings/models", body);
 
 // ---- 语义检索（本地 embedding） ----
 // 向量召回关联笔记，与 LLM 关联建议互补：快、免费、覆盖面广。

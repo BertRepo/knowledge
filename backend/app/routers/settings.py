@@ -9,10 +9,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+import httpx
 
 from .. import providers
 from ..config import ENV_KEY_MAP, get_settings, mask_key, update_env_file
-from ..models import SettingsUpdate, SettingsView
+from ..models import FetchModelsRequest, ModelsResponse, SettingsUpdate, SettingsView
 
 router = APIRouter()
 
@@ -66,3 +67,59 @@ def update_config(body: SettingsUpdate):
         raise HTTPException(status_code=500, detail=f"写入 .env 失败: {e}")
 
     return get_config()  # update_env_file 已清缓存，这里拿到的是新值
+
+
+@router.post("/api/settings/models", response_model=ModelsResponse)
+def fetch_models(body: FetchModelsRequest):
+    """拉取在线 API 的可用模型列表（GET {base_url}/v1/models）。
+
+    表单字段优先于已保存配置：用户可在配置页填好地址/密钥后直接拉取，不必先保存。
+    OpenAI 与 Anthropic 的模型列表接口都是 {"data": [{"id": ...}]}，鉴权头按格式区分。
+    """
+    s = get_settings()
+    base_url = (body.base_url or s.llm_base_url or "").strip()
+    api_key = (body.api_key or s.llm_api_key or "").strip()
+    fmt = (body.api_format or s.llm_api_format or "openai").strip()
+    version = (body.anthropic_version or s.llm_anthropic_version or "").strip()
+
+    if not api_key:
+        raise HTTPException(status_code=400, detail="未配置 API 密钥，无法拉取模型")
+    if not base_url:
+        raise HTTPException(status_code=400, detail="未配置 API 地址，无法拉取模型")
+
+    endpoint = base_url.rstrip("/") + "/v1/models"
+    headers = {"content-type": "application/json"}
+    if fmt == "anthropic":
+        headers["x-api-key"] = api_key
+        headers["anthropic-version"] = version
+    else:  # openai 兼容
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        resp = httpx.get(endpoint, headers=headers, timeout=s.llm_timeout)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"请求失败（网络/地址）：{e}")
+    if resp.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=f"接口返回 {resp.status_code}: {resp.text[:300]}",
+        )
+    try:
+        data = resp.json()
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=f"解析响应失败: {e}")
+
+    # 标准 OpenAI / Anthropic 格式：{"data": [{"id": "..."}, ...]}
+    models: list[str] = []
+    items = data.get("data") if isinstance(data, dict) else None
+    if isinstance(items, list):
+        for it in items:
+            if isinstance(it, dict) and it.get("id"):
+                models.append(str(it["id"]))
+    # 兜底：部分网关返回 {"models": ["..."]} 或直接 ["..."]
+    if not models:
+        if isinstance(data, dict) and isinstance(data.get("models"), list):
+            models = [str(m) for m in data["models"] if m]
+        elif isinstance(data, list):
+            models = [str(m) for m in data if m]
+    return ModelsResponse(models=models)

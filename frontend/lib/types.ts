@@ -138,6 +138,18 @@ export interface SettingsUpdate {
   embedding_model?: string;
 }
 
+// 拉取可用模型列表：用配置页表单当前值（可能尚未保存）去探测，留空回退已保存配置
+export interface FetchModelsRequest {
+  base_url?: string;
+  api_key?: string;
+  api_format?: string;
+  anthropic_version?: string;
+}
+
+export interface ModelsResponse {
+  models: string[];
+}
+
 // 领域 -> 中文标签（与后端 skills.py 对齐）
 export const DOMAIN_LABELS: Record<string, string> = {
   tech: "技术/工程",

@@ -55,13 +55,13 @@ export function SearchBox({ onSelect }: SearchBoxProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => results.length > 0 && setShowResults(true)}
-          placeholder="语义搜索笔记（输入问题或关键词）…"
-          className="h-9 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+          placeholder="搜索笔记…"
+          className="apple-input h-10 flex-1 px-4 text-sm outline-none"
         />
         <button
           type="submit"
           disabled={loading || !query.trim()}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-300 text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          className="inline-flex h-10 w-10 items-center justify-center apple-input text-zinc-500 disabled:opacity-40"
           aria-label="搜索"
         >
           {loading ? <Spinner className="h-4 w-4" /> : "🔍"}
@@ -76,7 +76,7 @@ export function SearchBox({ onSelect }: SearchBoxProps) {
           ) : loading ? (
             <p className="px-3 py-2 text-xs text-zinc-400">检索中…</p>
           ) : results.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-zinc-400">没有相关笔记</p>
+            <p className="px-3 py-2 text-xs text-zinc-400">没有找到相关笔记</p>
           ) : (
             <ul className="py-1">
               {results.map((r) => (

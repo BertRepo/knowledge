@@ -227,7 +227,7 @@ export function GraphView({ data, loading, onSelectNode, onLink }: GraphViewProp
     return (
       <Card title="知识图谱">
         <p className="text-sm text-zinc-500">
-          还没有笔记，或笔记之间还没有 [[wikilink]] 关联。分析网页并关联已有笔记后，这里会出现图谱。
+          还没有笔记，或笔记之间还没有关联。生成更多笔记并关联它们后，这里会出现知识图谱。
         </p>
       </Card>
     );

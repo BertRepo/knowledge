@@ -127,7 +127,7 @@ export function NoteViewer({ filename, onBack, onEdited }: NoteViewerProps) {
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className="min-h-[24rem] w-full resize-y rounded-md border border-zinc-300 bg-white p-3 font-mono text-sm outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900"
+            className="min-h-[24rem] w-full resize-y apple-input p-3.5 font-mono text-sm outline-none"
             placeholder="编辑笔记正文（Markdown）…"
           />
         ) : (
