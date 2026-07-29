@@ -30,6 +30,11 @@ def _setup_portable_paths():
     # local-model 在主 exe 目录（knowledge-backend 的上一级），所以往上找
     base = Path(sys.executable).resolve().parent
 
+    # CORS：打包后 Tauri WebView 的 origin 是 http://tauri.localhost（Win）
+    # 或 tauri://localhost（Mac），与开发模式的 localhost:3000 不同。
+    # 本地应用无安全顾虑，允许所有来源。
+    os.environ.setdefault("CORS_ORIGINS", "*")
+
     # 默认笔记目录：用户 home 下（用户可在配置页改）
     os.environ.setdefault("NOTES_DIR", str(Path.home() / "knowledge-notes"))
 

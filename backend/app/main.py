@@ -25,11 +25,14 @@ def create_app() -> FastAPI:
 
     # CORS：前端（默认 localhost:3000）与后端（默认 localhost:8000）不同源，
     # 浏览器会拦截跨域请求，这里按 .env 里 CORS_ORIGINS 白名单放行。
-    # allow_credentials=True 配合具体来源（不能用 *）才能携带 Cookie 等凭证。
+    # 打包版（Tauri WebView origin 是 tauri.localhost）用 *，此时关掉 credentials
+    # （CORS 规范不允许 * + credentials 同时用，本地应用也不需要 cookie）。
+    cors_list = s.cors_list
+    allow_all = "*" in cors_list
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=s.cors_list,
-        allow_credentials=True,
+        allow_origins=cors_list,
+        allow_credentials=not allow_all,
         allow_methods=["*"],
         allow_headers=["*"],
     )

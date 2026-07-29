@@ -106,12 +106,15 @@ fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
     if sidecar.exists() {
       // Windows：用 CREATE_NEW_PROCESS_GROUP 让 sidecar 及其子进程成独立进程组，
       // 便于 taskkill /T 杀整树。工作目录设为 sidecar 所在目录，便于它找 local-model。
+      // CORS_ORIGINS=*：Tauri WebView origin 是 tauri.localhost，与 dev 的
+      // localhost:3000 不同，打包后必须放行所有来源（本地应用无安全顾虑）。
       #[cfg(target_os = "windows")]
       {
         use std::os::windows::process::CommandExt;
         // CREATE_NEW_PROCESS_GROUP = 0x00000200
         if let Ok(child) = Command::new(&sidecar)
           .current_dir(sidecar.parent().unwrap())
+          .env("CORS_ORIGINS", "*")
           .creation_flags(0x00000200)
           .spawn()
         {
@@ -122,6 +125,7 @@ fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
       {
         if let Ok(child) = Command::new(&sidecar)
           .current_dir(sidecar.parent().unwrap())
+          .env("CORS_ORIGINS", "*")
           .spawn()
         {
           return Some(child);
