@@ -270,6 +270,10 @@ export const updateSettings = (body: SettingsUpdate) =>
 export const fetchModels = (body: FetchModelsRequest) =>
   postJson<ModelsResponse>("/api/settings/models", body);
 
+// 启停本地 AI 模型服务（切换 AI 来源时调用，节省资源）
+export const llmControl = (action: "start" | "stop") =>
+  postJson<{ stopped?: boolean; started?: boolean; error?: string }>("/api/settings/llm-control", { action });
+
 // ---- 语义检索（本地 embedding） ----
 // 向量召回关联笔记，与 LLM 关联建议互补：快、免费、覆盖面广。
 export const relateSemantic = (filename: string, top_k = 6) =>

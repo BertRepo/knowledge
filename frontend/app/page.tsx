@@ -23,8 +23,9 @@
  * 数据流（对话）：ChatPanel -> /api/chat/stream -> 后端按 result 笔记 + 关联笔记构建上下文。
  * 数据流（图谱）：切到 vault 模式 -> useGraph -> GraphView 力导向渲染 -> 点节点切到阅读视图。
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ApiError, getSession, linkNotes, processUrlStream, relateNote, relateSemantic } from "@/lib/api";
 import type { ProcessResponse } from "@/lib/types";
 import { useGraph } from "@/hooks/useGraph";
@@ -52,6 +53,24 @@ export default function Page() {
   const notes = useNotes();
   const sessions = useSessions();
   const graph = useGraph();
+  const router = useRouter();
+
+  // 监听 Tauri 菜单事件
+  useEffect(() => {
+    // @ts-expect-error Tauri 全局对象只在桌面端存在，Web 端无此类型
+    const tauri = window.__TAURI__;
+    if (tauri?.event?.listen) {
+      const unlisteners: Array<() => void> = [];
+      tauri.event.listen("menu-open-settings", () => router.push("/settings")).then((u: () => void) => unlisteners.push(u));
+      tauri.event.listen("menu-about", () => {
+        alert("知识助手 v1.0\n\n把网页变成你的知识网络。\n\n粘贴链接 → AI 生成结构化笔记 → 智能关联 → 双向链接构建知识图谱。\n\n支持在线 AI 与本地离线模型。");
+      }).then((u: () => void) => unlisteners.push(u));
+      tauri.event.listen("menu-guide", () => {
+        alert("使用说明\n\n1. 粘贴网页链接，点击「生成笔记」\n2. AI 自动摘要、打标签、生成图解\n3. 在「相关笔记」里勾选并关联已有笔记\n4. 切到「笔记库」查看知识图谱\n5. 在「AI 追问」里基于笔记提问\n6. 在「设置」里切换在线/本地 AI\n\n笔记保存在本地，可设为 iCloud 同步文件夹。");
+      }).then((u: () => void) => unlisteners.push(u));
+      return () => { unlisteners.forEach((u) => u()); };
+    }
+  }, [router]);
 
   const [mode, setMode] = useState<PageMode>("workbench");
   const [processing, setProcessing] = useState(false);

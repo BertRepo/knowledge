@@ -8,19 +8,18 @@
 // 2. RunEvent::ExitRequested（应用退出请求）
 // 3. RunEvent::Exit（应用真正退出，最后兜底）
 //
-// Windows 上用 taskkill /T /F 或 CreateToolhelp32Snapshot 杀进程树，
-// 单纯 Child::kill 只杀主进程不杀子进程（llama-server 会残留）。
+// Windows 上用 taskkill /T /F 杀进程树，确保子进程也退出。
 
 use std::process::{Command, Child};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri::menu::{Menu, MenuItem, Submenu, PredefinedMenuItem};
 
 struct BackendProcess(Mutex<Option<Child>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
-    .manage(BackendProcess(Mutex::new(None)))
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -30,14 +29,77 @@ pub fn run() {
         )?;
       }
 
+      // 应用菜单：编辑菜单 + 帮助菜单
+      // 用 app.handle() 创建（Tauri 2 菜单需要 AppHandle，不是 Context）
+      let handle = app.handle();
+      let edit_menu = Submenu::with_items(
+        handle,
+        "编辑",
+        true,
+        &[
+          &PredefinedMenuItem::undo(handle, None)?,
+          &PredefinedMenuItem::redo(handle, None)?,
+          &PredefinedMenuItem::separator(handle)?,
+          &PredefinedMenuItem::cut(handle, None)?,
+          &PredefinedMenuItem::copy(handle, None)?,
+          &PredefinedMenuItem::paste(handle, None)?,
+          &PredefinedMenuItem::select_all(handle, None)?,
+        ],
+      )?;
+
+      let help_menu = Submenu::with_items(
+        handle,
+        "帮助",
+        true,
+        &[
+          &MenuItem::with_id(handle, "about", "关于知识助手", true, None::<&str>)?,
+          &MenuItem::with_id(handle, "guide", "使用说明", true, None::<&str>)?,
+          &PredefinedMenuItem::separator(handle)?,
+          &MenuItem::with_id(handle, "open_notes", "打开笔记文件夹", true, None::<&str>)?,
+          &MenuItem::with_id(handle, "open_settings", "打开设置", true, None::<&str>)?,
+        ],
+      )?;
+
+      let menu = Menu::with_items(handle, &[&edit_menu, &help_menu])?;
+      app.set_menu(menu)?;
+
       let child = start_backend(app.handle());
       let state: tauri::State<BackendProcess> = app.state();
       *state.0.lock().unwrap() = child;
 
       Ok(())
     })
+    .on_menu_event(|app, event| {
+      match event.id().as_ref() {
+        "about" => {
+          // 弹出关于对话框（用 webview alert，避免依赖 dialog 插件）
+          app.emit("menu-about", ()).ok();
+        }
+        "guide" => {
+          app.emit("menu-guide", ()).ok();
+        }
+        "open_notes" => {
+          // 打开笔记目录（默认 ~/knowledge-notes）
+          let notes = std::env::var("NOTES_DIR").unwrap_or_else(|_| {
+            dirs::home_dir()
+              .map(|h| h.join("knowledge-notes").to_string_lossy().to_string())
+              .unwrap_or_default()
+          });
+          if !notes.is_empty() {
+            #[cfg(target_os = "windows")]
+            { Command::new("explorer").arg(&notes).spawn().ok(); }
+            #[cfg(target_os = "macos")]
+            { Command::new("open").arg(&notes).spawn().ok(); }
+          }
+        }
+        "open_settings" => {
+          app.emit("menu-open-settings", ()).ok();
+        }
+        _ => {}
+      }
+    })
     .on_window_event(|window, event| {
-      // 窗口关闭：触发清理（多窗口时只在主窗口关时杀）
+      // 窗口关闭：触发清理
       if let tauri::WindowEvent::Destroyed = event {
         kill_backend(window.app_handle());
       }
@@ -59,16 +121,11 @@ pub fn run() {
 }
 
 /// 杀掉后端 sidecar 及其所有子进程（llama-server 等）。
-///
-/// 先记下 sidecar 的 PID，用 Windows taskkill /T 杀整个进程树，
-/// 再 Child::kill 兜底。这样即使 sidecar 启动了 llama-server 子进程
-/// 也会被一起杀掉，不会残留锁文件。
 fn kill_backend(app: &tauri::AppHandle) {
   let state: tauri::State<BackendProcess> = app.state();
   let child = { state.0.lock().unwrap().take() };
   if let Some(mut c) = child {
     let pid = c.id();
-    // Windows：taskkill /T /F 杀进程树（含所有子进程如 llama-server）
     #[cfg(target_os = "windows")]
     {
       let _ = Command::new("taskkill")
@@ -77,26 +134,16 @@ fn kill_backend(app: &tauri::AppHandle) {
         .stderr(std::process::Stdio::null())
         .status();
     }
-    // Mac/Linux：kill 整个进程组
     #[cfg(not(target_os = "windows"))]
     {
-      let _ = Command::new("kill")
-        .args(["-9", &pid.to_string()])
-        .status();
+      let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
     }
-    // 兜底：Rust 的 kill（可能已无效，忽略错误）
     let _ = c.kill();
   }
 }
 
 /// 启动 Python 后端。
-///
-/// 打包后：sidecar `knowledge-backend.exe` 作为 resource 打进包，与主 exe 同目录。
-///   用 current_exe() 定位同目录的 sidecar。
-/// 开发时：调 backend/.venv311 的 uvicorn。
 fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
-  // 打包模式：sidecar 是 onedir 目录（knowledge-backend/knowledge-backend.exe），
-  // 作为 resource 与主 exe 同目录
   if let Ok(exe) = std::env::current_exe() {
     let sidecar = exe.with_file_name("knowledge-backend").join(if cfg!(target_os = "windows") {
       "knowledge-backend.exe"
@@ -104,14 +151,9 @@ fn start_backend(_app: &tauri::AppHandle) -> Option<Child> {
       "knowledge-backend"
     });
     if sidecar.exists() {
-      // Windows：用 CREATE_NEW_PROCESS_GROUP 让 sidecar 及其子进程成独立进程组，
-      // 便于 taskkill /T 杀整树。工作目录设为 sidecar 所在目录，便于它找 local-model。
-      // CORS_ORIGINS=*：Tauri WebView origin 是 tauri.localhost，与 dev 的
-      // localhost:3000 不同，打包后必须放行所有来源（本地应用无安全顾虑）。
       #[cfg(target_os = "windows")]
       {
         use std::os::windows::process::CommandExt;
-        // CREATE_NEW_PROCESS_GROUP = 0x00000200
         if let Ok(child) = Command::new(&sidecar)
           .current_dir(sidecar.parent().unwrap())
           .env("CORS_ORIGINS", "*")

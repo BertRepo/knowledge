@@ -84,6 +84,41 @@ def is_local_ready() -> bool:
         return False
 
 
+def stop_llama_server() -> bool:
+    """关闭 llama-server 子进程，释放资源。
+
+    用户在配置页从「本地 AI」切到「在线 AI」或「暂不使用」时调用。
+    用 taskkill /T /F 杀整个进程树，确保子进程也退出。
+    返回是否确实杀了一个进程。
+    """
+    global _llama_proc
+    if _llama_proc is None:
+        return False
+    pid = _llama_proc.pid
+    # Windows：taskkill /T /F 杀进程树
+    #[cfg(target_os = "windows")]  -- Python 没有 cfg，用 sys.platform
+    import sys as _sys
+    if _sys.platform == "win32":
+        try:
+            subprocess.run(
+                ["taskkill", "/T", "/F", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10,
+            )
+        except Exception:
+            pass
+    else:
+        try:
+            _llama_proc.kill()
+        except Exception:
+            pass
+    try:
+        _llama_proc.wait(timeout=5)
+    except Exception:
+        pass
+    _llama_proc = None
+    return True
+
+
 # ---------------------------------------------------------------------------
 # 统一接口：根据 llm_provider 分发
 # ---------------------------------------------------------------------------

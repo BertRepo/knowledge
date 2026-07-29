@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { ApiError, fetchModels, getSettings, updateSettings } from "@/lib/api";
+import { ApiError, fetchModels, getSettings, llmControl, updateSettings } from "@/lib/api";
 import type { SettingsView, SettingsUpdate } from "@/lib/types";
 import { Button } from "./ui/Button";
 import { Card } from "./ui/Card";
@@ -200,7 +200,14 @@ export function SettingsForm() {
                 name="llm_provider"
                 value={opt.v}
                 checked={form.llm_provider === opt.v}
-                onChange={(e) => setForm((prev) => ({ ...prev, llm_provider: e.target.value }))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((prev) => ({ ...prev, llm_provider: v }));
+                  // 切走本地 AI 时立即关闭 llama-server 释放资源；切到本地时按需启动
+                  if (v !== "local") {
+                    llmControl("stop").catch(() => {});
+                  }
+                }}
                 className="hidden"
               />
               <span className="font-medium">{opt.label}</span>

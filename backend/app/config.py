@@ -116,7 +116,11 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    # 解密敏感字段（.env 里可能存成 enc:xxx）
+    if s.llm_api_key:
+        s.llm_api_key = decrypt_value(s.llm_api_key)
+    return s
 
 
 # ---------- API 配置页：热更新 .env ----------
@@ -142,7 +146,61 @@ ENV_KEY_MAP = {
 }
 
 # backend/.env 的绝对路径（config.py 在 app/ 下，上一级就是 backend/）
-ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+# 打包模式（sys.frozen）下用 app data 目录的 config.env，让配置能持久化
+import sys as _sys
+import base64 as _b64
+import hashlib as _hl
+import os as _os
+
+
+def _config_file() -> Path:
+    """配置文件路径：开发模式用 backend/.env，打包模式用 app data 目录。"""
+    if getattr(_sys, "frozen", False):
+        # 打包后存用户目录，与主程序同根
+        base = Path(_os.environ.get("APPDATA", Path.home())) / "knowledge-assistant"
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "config.env"
+    return Path(__file__).resolve().parent.parent / ".env"
+
+
+ENV_FILE = _config_file()
+
+
+def _derive_key() -> bytes:
+    """从机器特征派生密钥（用于密钥字段的简单加密）。
+
+    用机器名 + 固定盐派生 32 字节密钥，做 XOR 加密。
+    不是军事级加密，但防止密钥明文存盘，本地工具够用。
+    密钥绑机器：换电脑无法解密（符合本地安全预期）。
+    """
+    machine = _os.environ.get("COMPUTERNAME", _os.environ.get("HOSTNAME", "default"))
+    username = _os.environ.get("USERNAME", "user")
+    raw = f"knowledge-assistant:{machine}:{username}".encode("utf-8")
+    return _hl.sha256(raw).digest()  # 32 字节
+
+
+def _xor(data: bytes, key: bytes) -> bytes:
+    """XOR 加密/解密（对称，同一函数）。"""
+    return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
+
+
+def encrypt_value(plain: str) -> str:
+    """加密敏感值（如 API 密钥），返回 base64 字符串，加 enc: 前缀标识。"""
+    if not plain:
+        return ""
+    enc = _xor(plain.encode("utf-8"), _derive_key())
+    return "enc:" + _b64.b64encode(enc).decode("ascii")
+
+
+def decrypt_value(stored: str) -> str:
+    """解密敏感值。非 enc: 前缀的视为明文（兼容旧配置）。"""
+    if not stored or not stored.startswith("enc:"):
+        return stored
+    try:
+        enc = _b64.b64decode(stored[4:])
+        return _xor(enc, _derive_key()).decode("utf-8")
+    except Exception:
+        return ""
 
 
 def mask_key(key: str) -> str:
@@ -155,8 +213,17 @@ def mask_key(key: str) -> str:
 
 
 def update_env_file(updates: dict) -> None:
-    """把 {ENV_VAR: value} 写回 backend/.env（保留注释/空行/顺序），
-    然后清掉 get_settings 的 lru_cache，下次调用会读到新值。"""
+    """把 {ENV_VAR: value} 写回配置文件（保留注释/空行/顺序），
+    密钥字段加密存储，然后清掉 get_settings 的 lru_cache。"""
+    # 密钥字段加密
+    secure_updates = {}
+    for k, v in updates.items():
+        if k == "LLM_API_KEY" and v:
+            secure_updates[k] = encrypt_value(v)
+        else:
+            secure_updates[k] = v
+    updates = secure_updates
+
     lines = ENV_FILE.read_text(encoding="utf-8").splitlines() if ENV_FILE.exists() else []
     key_index: dict[str, int] = {}
     out_lines: list[str] = []

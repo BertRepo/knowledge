@@ -69,6 +69,32 @@ def update_config(body: SettingsUpdate):
     return get_config()  # update_env_file 已清缓存，这里拿到的是新值
 
 
+@router.post("/api/settings/llm-control")
+def llm_control(body: dict):
+    """启停本地 AI 模型服务，节省资源。
+
+    用户在配置页切换 AI 来源时调用：
+    - action=start：切到「本地 AI」时启动 llama-server
+    - action=stop：切到「在线 AI」或「暂不使用」时关闭 llama-server，释放内存
+    """
+    action = body.get("action", "")
+    if action == "stop":
+        stopped = providers.stop_llama_server()
+        return {"stopped": stopped}
+    elif action == "start":
+        # start 由首次 AI 调用触发（_ensure_llama_server），这里只检查是否就绪
+        ready = providers.is_local_ready()
+        if not ready:
+            # 触发启动
+            try:
+                providers._ensure_llama_server()
+                ready = True
+            except Exception as e:
+                return {"started": False, "error": str(e)}
+        return {"started": ready}
+    raise HTTPException(status_code=400, detail="action 必须是 start 或 stop")
+
+
 @router.post("/api/settings/models", response_model=ModelsResponse)
 def fetch_models(body: FetchModelsRequest):
     """拉取在线 API 的可用模型列表（GET {base_url}/v1/models）。
